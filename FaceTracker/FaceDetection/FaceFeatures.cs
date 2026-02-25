@@ -1,172 +1,136 @@
-﻿using System.Drawing;
-using Emgu.CV;
-using Emgu.CV.Structure;
+using OpenCvSharp;
 
-namespace FaceFinderDemo.FaceDetection
+namespace FaceFinderDemo.FaceDetection;
+
+public class FaceFeatures
 {
-    public class FaceFeatures
+    public FaceFeatures(Rect face, int frameWidth, int frameHeight)
     {
-        public FaceFeatures(Rectangle face, int frameWidth, int frameHeight)
-        {
-            this.FaceLocation = face;
+        FaceLocation = face;
+        CalcProbableEyeLocation(frameWidth, frameHeight);
+        CalcProbableNoseLocation(frameWidth, frameHeight);
+        CalcProbableMouthLocation(frameWidth, frameHeight);
+    }
 
-            CalcProbableEyeLocation(frameWidth, frameHeight);
-            CalcProbableNoseLocation(frameWidth, frameHeight);
-            CalcProbableMouthLocation(frameWidth, frameHeight);
+    private void CalcProbableEyeLocation(int width, int height)
+    {
+        var loc = FaceLocation;
+        int origHeight = loc.Height;
+        loc.Height = (int)(loc.Height / 2.7f);
+        int shiftY = (int)((origHeight / 1.7) - loc.Height);
+        loc.Y += shiftY;
+        ProbableEyeLocation = FixBoundings(loc, width, height);
+    }
+
+    private void CalcProbableMouthLocation(int width, int height)
+    {
+        var loc = FaceLocation;
+        loc.Width /= 2;
+        loc.Height /= 3;
+        int shiftX = (FaceLocation.Width - loc.Width) / 2;
+        int shiftY = loc.Height * 2;
+        loc.X += shiftX;
+        loc.Y += shiftY;
+        ProbableMouthLocation = FixBoundings(loc, width, height);
+    }
+
+    private void CalcProbableNoseLocation(int width, int height)
+    {
+        var loc = FaceLocation;
+        loc.Width = (int)(0.43 * loc.Width);
+        loc.Height = (int)(0.43 * loc.Height);
+        int shiftX = (FaceLocation.Width - loc.Width) / 2;
+        int shiftY = (FaceLocation.Height - loc.Height) / 2;
+        loc.X += shiftX;
+        loc.Y += shiftY;
+        ProbableNoseLocation = FixBoundings(loc, width, height);
+    }
+
+    Rect FixBoundings(Rect rect, int width, int height)
+    {
+        if (rect.Left < 0) rect.X = 0;
+        if (rect.Top < 0) rect.Y = 0;
+        if (rect.Bottom > height) rect.Height = rect.Height - (rect.Bottom - height);
+        if (rect.Right > width) rect.Width = rect.Width - (rect.Right - width);
+        return rect;
+    }
+
+    public bool IsValid =>
+        LeftEyeLocation != default(Rect) && RightEyeLocation != default(Rect) &&
+        NoseLocation != default(Rect) && MouthLocation != default(Rect);
+
+    public Rect ProbableEyeLocation { get; private set; }
+    public Rect ProbableNoseLocation { get; private set; }
+    public Rect ProbableMouthLocation { get; private set; }
+    public Rect FaceLocation { get; private set; }
+    public Rect LeftEyeLocation { get; private set; }
+    public Rect RightEyeLocation { get; private set; }
+    public Rect NoseLocation { get; private set; }
+    public Rect MouthLocation { get; private set; }
+
+    public void AddEyes(Rect[] eyes)
+    {
+        if (eyes.Length > 0)
+        {
+            var r = eyes[0];
+            r.X += ProbableEyeLocation.X;
+            r.Y += ProbableEyeLocation.Y;
+            LeftEyeLocation = r;
         }
-
-        private void CalcProbableEyeLocation(int width, int height)
+        if (eyes.Length > 1)
         {
-            var probableEyeLocation = FaceLocation;
-            int originalHeight = probableEyeLocation.Height;
-            probableEyeLocation.Height = (int) (probableEyeLocation.Height / 2.7f); //only search a part of the face
-
-            //shif the frame a little bit down.
-            int shiftOverY = (int) ((originalHeight / 1.7) - probableEyeLocation.Height);
-
-            //now shift the window a little bit down
-            probableEyeLocation.Y += shiftOverY;
-            ProbableEyeLocation = probableEyeLocation;
-
-            ProbableEyeLocation = FixBoundings(probableEyeLocation, width, height);
+            var r = eyes[1];
+            r.X += ProbableEyeLocation.X;
+            r.Y += ProbableEyeLocation.Y;
+            RightEyeLocation = r;
         }
+    }
 
-        private void CalcProbableMouthLocation(int width, int height)
+    public void AddNose(Rect[] nose)
+    {
+        if (nose.Length > 0)
         {
-            //these values are based on tests
-            var probableMouthLocation = FaceLocation;
-            probableMouthLocation.Width /= 2;
-            probableMouthLocation.Height /= 3;
-
-            //shif the frame a little bit down.
-            int shiftOverX = ((FaceLocation.Width - probableMouthLocation.Width) / 2);
-            int shiftOverY = probableMouthLocation.Height * 2;
-
-            //now shift the window a little bit down
-            probableMouthLocation.X += shiftOverX;
-            probableMouthLocation.Y += shiftOverY;
-
-            ProbableMouthLocation = FixBoundings(probableMouthLocation, width, height);
+            var r = nose[0];
+            r.X += ProbableNoseLocation.X;
+            r.Y += ProbableNoseLocation.Y;
+            NoseLocation = r;
         }
+    }
 
-        private void CalcProbableNoseLocation(int width, int height)
+    public void AddMouth(Rect[] mouth)
+    {
+        if (mouth.Length > 0)
         {
-            Rectangle probableNoseLocation = FaceLocation;
-
-            //these values are based on tests
-            probableNoseLocation.Width = (int)(0.43 * probableNoseLocation.Width);
-            probableNoseLocation.Height = (int)(0.43 * probableNoseLocation.Height);
-
-            //shif the frame a little bit down.
-            int shiftOverX = ((FaceLocation.Width - probableNoseLocation.Width) / 2);
-            int shiftOverY = ((FaceLocation.Height - probableNoseLocation.Height) / 2);
-            probableNoseLocation.X += shiftOverX;
-            probableNoseLocation.Y += shiftOverY;
-            ProbableNoseLocation = probableNoseLocation;
-
-            ProbableNoseLocation = FixBoundings(probableNoseLocation, width, height);
+            var r = mouth[0];
+            r.X += ProbableMouthLocation.X;
+            r.Y += ProbableMouthLocation.Y;
+            MouthLocation = r;
         }
+    }
 
-        Rectangle FixBoundings(Rectangle rect, int width, int height)
+    public void DrawToImage(Mat image, bool includeInterestAreas)
+    {
+        int thickness = 2;
+        // Red for face
+        Cv2.Rectangle(image, FaceLocation, new Scalar(0, 0, 255), thickness);
+
+        if (LeftEyeLocation != default(Rect))
+            Cv2.Rectangle(image, LeftEyeLocation, new Scalar(0, 255, 255), thickness);
+
+        if (RightEyeLocation != default(Rect))
+            Cv2.Rectangle(image, RightEyeLocation, new Scalar(0, 255, 255), thickness);
+
+        if (NoseLocation != default(Rect))
+            Cv2.Rectangle(image, NoseLocation, new Scalar(0, 255, 0), thickness);
+
+        if (MouthLocation != default(Rect))
+            Cv2.Rectangle(image, MouthLocation, new Scalar(255, 0, 0), thickness);
+
+        if (includeInterestAreas)
         {
-            if (rect.Left < 0)
-            {
-                rect.X = 0;
-            }
-
-            if (rect.Top < 0)
-            {
-                rect.Y = 0;
-            }
-
-            if (rect.Bottom > height)
-            {
-                rect.Height = rect.Height - (rect.Bottom - height);
-            }
-
-            if (rect.Right > width)
-            {
-                rect.Width = rect.Width - (rect.Right - width);
-            }
-
-            return rect;
-        }
-
-        public bool IsValid
-        {
-            get { return !LeftEyeLocation.IsEmpty && !RightEyeLocation.IsEmpty && !NoseLocation.IsEmpty && !MouthLocation.IsEmpty; }
-        }
-
-        public Rectangle ProbableEyeLocation { get; private set; }
-        public Rectangle ProbableNoseLocation { get; private set; }
-        public Rectangle ProbableMouthLocation { get; private set; }
-
-        public Rectangle FaceLocation { get; private set; }
-        public Rectangle LeftEyeLocation { get; private set; }
-        public Rectangle RightEyeLocation { get; private set; }
-        public Rectangle NoseLocation { get; private set; }
-        public Rectangle MouthLocation { get; private set; }
-
-        public void AddEyes(Rectangle[] eyes)
-        {
-            if (eyes.Length > 0)
-            {
-                Rectangle eyeRect = eyes[0];
-                eyeRect.Offset(ProbableEyeLocation.X, ProbableEyeLocation.Y);
-                LeftEyeLocation = eyeRect;
-            }
-
-            if (eyes.Length > 1)
-            {
-                Rectangle eyeRect = eyes[1];
-                eyeRect.Offset(ProbableEyeLocation.X, ProbableEyeLocation.Y);
-                RightEyeLocation = eyeRect;
-            }
-        }
-
-        public void AddNose(Rectangle[] nose)
-        {
-            if (nose.Length > 0)
-            {
-                Rectangle noseRect = nose[0];
-                noseRect.Offset(ProbableNoseLocation.X, ProbableNoseLocation.Y);
-                NoseLocation = noseRect;
-            }
-        }
-
-        public void AddMouth(Rectangle[] mouth)
-        {
-            if (mouth.Length > 0)
-            {
-                Rectangle mouthRect = mouth[0];
-                mouthRect.Offset(ProbableMouthLocation.X, ProbableMouthLocation.Y);
-                MouthLocation = mouthRect;
-            }
-        }
-
-        public void DrawToImage(Mat image, bool includeInterestAreas)
-        {
-            int thickness = 2;
-            CvInvoke.Rectangle(image, FaceLocation, new Bgr(Color.Red).MCvScalar, thickness);
-
-            if(!LeftEyeLocation.IsEmpty)
-                CvInvoke.Rectangle(image, LeftEyeLocation, new Bgr(Color.Yellow).MCvScalar, thickness);
-
-            if (!RightEyeLocation.IsEmpty)
-                CvInvoke.Rectangle(image, RightEyeLocation, new Bgr(Color.Yellow).MCvScalar, thickness);
-
-            if (!NoseLocation.IsEmpty)
-                CvInvoke.Rectangle(image, NoseLocation, new Bgr(Color.Green).MCvScalar, thickness);
-
-            if (!MouthLocation.IsEmpty)
-                CvInvoke.Rectangle(image, MouthLocation, new Bgr(Color.Blue).MCvScalar, thickness);
-
-            if (includeInterestAreas)
-            {
-                CvInvoke.Rectangle(image, ProbableEyeLocation, new Bgr(Color.Magenta).MCvScalar, thickness);
-                CvInvoke.Rectangle(image, ProbableNoseLocation, new Bgr(Color.Magenta).MCvScalar, thickness);
-                CvInvoke.Rectangle(image, ProbableMouthLocation, new Bgr(Color.Magenta).MCvScalar, thickness);    
-            }
+            Cv2.Rectangle(image, ProbableEyeLocation, new Scalar(255, 0, 255), thickness);
+            Cv2.Rectangle(image, ProbableNoseLocation, new Scalar(255, 0, 255), thickness);
+            Cv2.Rectangle(image, ProbableMouthLocation, new Scalar(255, 0, 255), thickness);
         }
     }
 }

@@ -1,79 +1,64 @@
-﻿using System;
-using Emgu.CV;
+using System;
+using System.Threading;
 using FaceFinderDemo.ImageProcessing;
+using OpenCvSharp;
 
-namespace FaceFinderDemo.Camera
+namespace FaceFinderDemo.Camera;
+
+public class CameraDevice : ImageProcessor, IDisposable
 {
-    public class CameraDevice : ImageProcessor, IDisposable
+    public bool IsCapturing => _isCapturing;
+
+    VideoCapture? _capture;
+    Thread? _captureThread;
+    bool _disposed;
+    volatile bool _isCapturing;
+
+    public void StartCamera(int cameraIndex)
     {
-        public bool IsCapturing { get { return isCapturing; }}
+        if (_isCapturing) return;
 
-        Mat capturedImage;
-        Capture camera;
-        bool disposed;
-        int frameRate;
-        int frameCount;
-        bool isCapturing;
-
-        public CameraDevice()
+        _capture = new VideoCapture(cameraIndex);
+        if (!_capture.IsOpened())
         {
-            capturedImage = new Mat();
+            _capture.Dispose();
+            _capture = null;
+            return;
         }
 
-        public void StartCamera(int cameraIndex)
+        _isCapturing = true;
+        _captureThread = new Thread(CaptureLoop) { IsBackground = true, Name = "CameraCapture" };
+        _captureThread.Start();
+    }
+
+    private void CaptureLoop()
+    {
+        using var frame = new Mat();
+        while (_isCapturing)
         {
-            if (isCapturing)
+            if (_capture == null || !_capture.IsOpened()) break;
+            if (_capture.Read(frame) && !frame.Empty())
             {
-                return;
+                OnImageAvailable(frame.Clone());
             }
-            CvInvoke.UseOpenCL = false;
-            camera = new Capture(cameraIndex);
-            camera.ImageGrabbed += CapOnImageGrabbed;
-            camera.Start();
-            isCapturing = true;
-        }
-
-        public void StopCamera()
-        {
-            if (!isCapturing)
-            {
-                return;
-            }
-
-            camera.ImageGrabbed -= CapOnImageGrabbed;
-            camera.Stop();
-            camera.Dispose();
-            isCapturing = false;
-        }
-
-        private void CapOnImageGrabbed(object sender, EventArgs e)
-        {
-            frameCount++;
-            //Debug.WriteLine("Frames: " + frameCount);
-            camera.Retrieve(capturedImage);
-            OnImageAvailable(capturedImage);
-        }
-
-        public void Dispose()
-        {
-            if (disposed)
-            {
-                return;
-            }
-
-            capturedImage.Dispose();
-
-            if (isCapturing)
-            {
-                StopCamera();
-            }
-
-            disposed = true;
-        }
-
-        protected override void OnImageReceived(Mat image)
-        {
-            
         }
     }
+
+    public void StopCamera()
+    {
+        if (!_isCapturing) return;
+        _isCapturing = false;
+        _captureThread?.Join(2000);
+        _capture?.Dispose();
+        _capture = null;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        StopCamera();
+        _disposed = true;
+    }
+
+    protected override void OnImageReceived(Mat image) { }
 }
