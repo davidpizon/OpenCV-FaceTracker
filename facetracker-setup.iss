@@ -8,9 +8,9 @@
 AppId={{97BA0788-E123-471D-8BBA-2FE397C66899}
 AppName=OpenCV Face (and more) Tracker
 AppVersion=V1.05
-DefaultDirName={pf}\Face(andmore)Tracker
-DefaultGroupName=Face(andmore)Tracker
-OutputBaseFilename=face(andmore)tracker-setup
+DefaultDirName={pf}\FaceTracker
+DefaultGroupName=FaceTracker
+OutputBaseFilename=facetracker-setup
 Compression=lzma
 SolidCompression=yes
 VersionInfoVersion= 1.0.5
@@ -23,21 +23,21 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-;Source: "Face(andmore)Tracker\bin\x64\Release\Face(andmore)Tracker.exe"; DestDir: "{app}"; Check: Is64BitInstallMode;Flags: ignoreversion
-Source: "Face(andmore)Tracker\bin\Release\Face(andmore)Tracker.exe"; DestDir: "{app}"; 
-Source: "Face(andmore)Tracker\bin\Release\*"; Excludes: "*.pdb,*.vshost*,AForge.xml,AForge.Video.xml,AForge.Video.DirectShow.xml,Emgu.CV.xml,Emgu.Util.xml"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-;Source: "Face(andmore)Tracker\bin\x86\Release\*"; Excludes: "*.pdb,*.vshost*,AForge.xml,AForge.Video.xml,AForge.Video.DirectShow.xml,Emgu.CV.xml,Emgu.Util.xml"; DestDir: "{app}"; Check: not Is64BitInstallMode; Flags: ignoreversion recursesubdirs createallsubdirs
+;Source: "FaceTracker\bin\x64\Release\FaceTracker.exe"; DestDir: "{app}"; Check: Is64BitInstallMode;Flags: ignoreversion
+Source: "FaceTracker\bin\Release\FaceTracker.exe"; DestDir: "{app}"; 
+Source: "FaceTracker\bin\Release\*"; Excludes: "*.pdb,*.vshost*,AForge.xml,AForge.Video.xml,AForge.Video.DirectShow.xml,Emgu.CV.xml,Emgu.Util.xml"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+;Source: "FaceTracker\bin\x86\Release\*"; Excludes: "*.pdb,*.vshost*,AForge.xml,AForge.Video.xml,AForge.Video.DirectShow.xml,Emgu.CV.xml,Emgu.Util.xml"; DestDir: "{app}"; Check: not Is64BitInstallMode; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "installers\dotNetFx40_Full_setup.exe"; DestDir: {tmp}; Flags: deleteafterinstall; AfterInstall: InstallFramework; Check: FrameworkIsNotInstalled
 Source: "installers\vcredist_x64.exe"; DestDir: {tmp}; Flags: deleteafterinstall; AfterInstall: InstallVCRedistx64; Check: Is64BitInstallMode and VCRedistx64NotInstalled
 Source: "installers\vcredist_x86.exe"; DestDir: {tmp}; Flags: deleteafterinstall; AfterInstall: InstallVCRedistx86; Check: (not Is64BitInstallMode) and VCRedistx86NotInstalled
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
-Name: "{group}\Face(andmore)Tracker"; Filename: "{app}\Face(andmore)Tracker.exe"
-Name: "{commondesktop}\Face(andmore)Tracker"; Filename: "{app}\Face(andmore)Tracker.exe"; Tasks: desktopicon
+Name: "{group}\FaceTracker"; Filename: "{app}\FaceTracker.exe"
+Name: "{commondesktop}\FaceTracker"; Filename: "{app}\FaceTracker.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\Face(andmore)Tracker.exe"; Description: "{cm:LaunchProgram,Face(andmore)Tracker}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\FaceTracker.exe"; Description: "{cm:LaunchProgram,FaceTracker}"; Flags: nowait postinstall skipifsilent
 
 Filename: "http://blog.a9t9.com/p/opencv-face-andmore-tracker.html?scr=installer"; Flags: shellexec runasoriginaluser postinstall; Description: "Show help page (online)"
 
