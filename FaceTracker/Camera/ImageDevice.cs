@@ -1,105 +1,81 @@
-﻿using System;
+using System;
 using System.Timers;
-using Emgu.CV;
-using Emgu.CV.CvEnum;
 using FaceFinderDemo.ImageProcessing;
+using OpenCvSharp;
 
-namespace FaceFinderDemo.Camera
+namespace FaceFinderDemo.Camera;
+
+public class ImageDevice : ImageProcessor, IDisposable
 {
-    public class ImageDevice : ImageProcessor, IDisposable
+    public bool IsSending => _isSending;
+    public int FrameRate { get; set; }
+
+    bool _disposed;
+    Mat? _image;
+    bool _isSending;
+    System.Timers.Timer _sendTimer;
+    readonly object _sync = new();
+
+    public ImageDevice()
     {
-        public bool IsSending { get { return isSending; } }
+        _sendTimer = new System.Timers.Timer(100);
+        _sendTimer.Elapsed += SendTimerOnElapsed;
+    }
 
-        public int FrameRate { get; set; }
-
-        bool disposed;
-        Mat image;
-        bool isSending;
-        Timer sendTimer;
-        object sync = new object();
-
-        public ImageDevice()
+    void SendTimerOnElapsed(object? sender, ElapsedEventArgs e)
+    {
+        if (_image == null) return;
+        _sendTimer.Stop();
+        Mat clone;
+        lock (_sync)
         {
-            sendTimer = new Timer();
-            sendTimer.Interval = 100;
-            sendTimer.Elapsed += SendTimerOnElapsed;
+            if (_image == null) { _sendTimer.Start(); return; }
+            clone = _image.Clone();
         }
+        OnImageAvailable(clone);
+        _sendTimer.Start();
+    }
 
-        void SendTimerOnElapsed(object sender, ElapsedEventArgs elapsedEventArgs)
+    public void StartSending()
+    {
+        if (_isSending) return;
+        _sendTimer.Start();
+        _isSending = true;
+    }
+
+    public void StopSending()
+    {
+        if (!_isSending) return;
+        _sendTimer.Stop();
+        _isSending = false;
+    }
+
+    public bool LoadFromFile(string imageFile)
+    {
+        lock (_sync)
         {
-            if (image == null)
-                return;
-
-            sendTimer.Stop();
-            lock (elapsedEventArgs)
+            try
             {
-                OnImageAvailable(image.Clone());    
+                var loaded = Cv2.ImRead(imageFile, ImreadModes.Color);
+                if (loaded.Empty()) return false;
+                _image?.Dispose();
+                _image = loaded;
+                return true;
             }
-            sendTimer.Start();
-        }
-
-        public void StartSending()
-        {
-            if (isSending)
-                return;
-
-            sendTimer.Start();
-
-            isSending = true;
-        }
-
-        public void StopSending()
-        {
-            if (!isSending)
-                return;
-
-            sendTimer.Stop();
-
-            isSending = false;
-        }
-
-        public bool LoadFromFile(string imageFile)
-        {
-            lock (sync)
+            catch
             {
-                if (image != null)
-                {
-                    image.Dispose();
-                }
-                try
-                {
-                    var imageLoaded = new Mat(imageFile, LoadImageType.Color);
-                    if (imageLoaded.IsEmpty)
-                        return false;
-
-                    image = imageLoaded;
-                    return true;
-                }
-                catch
-                {
-                    return false;
-                }    
+                return false;
             }
-        }
-
-        public void Dispose()
-        {
-            if (disposed)
-            {
-                return;
-            }
-
-            if (image != null)
-            {
-                image.Dispose();
-            }
-
-            disposed = true;
-        }
-
-        protected override void OnImageReceived(Mat image)
-        {
-            
         }
     }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _sendTimer.Dispose();
+        _image?.Dispose();
+        _disposed = true;
+    }
+
+    protected override void OnImageReceived(Mat image) { }
 }

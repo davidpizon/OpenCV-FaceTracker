@@ -1,26 +1,22 @@
-﻿using System.Collections.Generic;
-using AForge.Video.DirectShow;
+using System.Collections.Generic;
+using OpenCvSharp;
 
-namespace FaceFinderDemo.Camera
+namespace FaceFinderDemo.Camera;
+
+/// <summary>
+/// Cross-platform camera enumeration by probing VideoCapture indices.
+/// </summary>
+public static class DeviceEnumerator
 {
-    /// <summary>
-    /// EMGU CV doesn't support detecting available cameras, so we use directshow for it.
-    /// </summary>
-    public static class DeviceEnumerator
+    public static List<string> GetDeviceNames()
     {
-        public static List<string> GetDeviceNames()
+        var devices = new List<string>();
+        for (int i = 0; i < 10; i++)
         {
-            var devices = new List<string>();
-            FilterInfoCollection videoDevices = new FilterInfoCollection(
-                        FilterCategory.VideoInputDevice);
-            for (int i = 0; i != videoDevices.Count; i++)
-            {
-                var dev = videoDevices[i];
-                devices.Add(dev.Name);
-            }
-            // OpenCV seems to handle the order in the other direction
-            devices.Reverse();
-            return devices;
+            using var cap = new VideoCapture(i);
+            if (!cap.IsOpened()) break;
+            devices.Add($"Camera {i}");
         }
+        return devices;
     }
 }
