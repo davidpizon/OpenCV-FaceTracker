@@ -14,15 +14,26 @@ using OpenCvSharp;
 
 namespace FaceFinderDemo;
 
+/// <summary>
+/// Main application window. Wires UI events to the image-processing pipeline and
+/// displays the annotated video feed produced by <see cref="FaceMeshDevice"/>.
+/// </summary>
 public partial class MainWindow : Avalonia.Controls.Window
 {
+    // Pipeline nodes — FaceMesh is the single processor; the three sources are mutually exclusive.
     FaceMeshDevice _faceMesh;
     MainWindowViewModel _model;
     CameraDevice _camera;
     ImageDevice _image;
     VideoFileDevice _video;
+
+    // Shown in the image control while no capture source is active.
     Bitmap? _placeholderBitmap;
 
+    /// <summary>
+    /// Creates all pipeline devices, subscribes to the face-mesh output event,
+    /// and registers window lifecycle handlers.
+    /// </summary>
     public MainWindow()
     {
         _model = new MainWindowViewModel();
@@ -42,6 +53,10 @@ public partial class MainWindow : Avalonia.Controls.Window
         Closed += OnClosed;
     }
 
+    /// <summary>
+    /// Runs after the window is fully rendered: loads the placeholder bitmap,
+    /// populates the camera combo box, and pre-selects the first available camera.
+    /// </summary>
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
         _placeholderBitmap = LoadPlaceholderBitmap();
@@ -51,6 +66,10 @@ public partial class MainWindow : Avalonia.Controls.Window
             _model.SelectedCameraIndex = 0;
     }
 
+    /// <summary>
+    /// Runs when the window is closed: detaches the pipeline, stops all source devices,
+    /// and disposes every <see cref="IDisposable"/> pipeline node.
+    /// </summary>
     private void OnClosed(object? sender, EventArgs e)
     {
         _faceMesh.DetachSource();
@@ -63,6 +82,10 @@ public partial class MainWindow : Avalonia.Controls.Window
         _video.Dispose();
     }
 
+    /// <summary>
+    /// Attempts to load <c>Resources/camera_image_placeholder.png</c> from the application
+    /// base directory. Returns <see langword="null"/> if the file is not found.
+    /// </summary>
     private Bitmap? LoadPlaceholderBitmap()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "Resources", "camera_image_placeholder.png");
@@ -71,6 +94,11 @@ public partial class MainWindow : Avalonia.Controls.Window
         return null;
     }
 
+    /// <summary>
+    /// Called on every processed frame from <see cref="_faceMesh"/>.
+    /// Converts the <see cref="OpenCvSharp.Mat"/> to an Avalonia bitmap and updates the
+    /// image control on the UI thread, but only while capturing is active.
+    /// </summary>
     void ImageAvailable(object? sender, ImageAvailableEventArgs e)
     {
         var bitmap = OpenCvAvaloniaHelper.MatToAvaloniaBitmap(e.Image);
@@ -81,6 +109,10 @@ public partial class MainWindow : Avalonia.Controls.Window
         });
     }
 
+    /// <summary>
+    /// Appends <paramref name="message"/> to the log text box on the UI thread
+    /// and scrolls the caret to the end.
+    /// </summary>
     void LogMessage(string message)
     {
         Dispatcher.UIThread.Post(() =>
@@ -90,6 +122,10 @@ public partial class MainWindow : Avalonia.Controls.Window
         });
     }
 
+    /// <summary>
+    /// Handles the Start button. Validates the camera selection, stops any running source,
+    /// attaches the camera to the face-mesh pipeline, and starts the capture loop.
+    /// </summary>
     void StartCapturing_OnClick(object? sender, RoutedEventArgs e)
     {
         if (_model.AvailableCameras.Count == 0)
@@ -113,6 +149,10 @@ public partial class MainWindow : Avalonia.Controls.Window
         _camera.StartCamera(_model.SelectedCameraIndex);
     }
 
+    /// <summary>
+    /// Handles the Stop button. Stops all sources, clears the capturing flag, and
+    /// restores the placeholder bitmap after a short delay.
+    /// </summary>
     void StopCapturing_OnClick(object? sender, RoutedEventArgs e)
     {
         LogMessage("Capturing stopped");
@@ -126,6 +166,11 @@ public partial class MainWindow : Avalonia.Controls.Window
         });
     }
 
+    /// <summary>
+    /// Handles the Load Media button. Opens a file picker, then routes the selected file
+    /// to either <see cref="_image"/> (static image) or <see cref="_video"/> (video file)
+    /// based on the file extension.
+    /// </summary>
     async void LoadMedia_OnClick(object? sender, RoutedEventArgs e)
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -183,6 +228,10 @@ public partial class MainWindow : Avalonia.Controls.Window
         }
     }
 
+    /// <summary>
+    /// Stops the camera, image, and video source nodes and detaches the face-mesh
+    /// processor from all upstream sources.
+    /// </summary>
     void StopAllSources()
     {
         _camera.StopCamera();
@@ -191,6 +240,12 @@ public partial class MainWindow : Avalonia.Controls.Window
         _faceMesh.DetachSource();
     }
 
+    /// <summary>
+    /// Attaches <paramref name="source"/> to the face-mesh pipeline and, if the
+    /// MediaPipe graph has not been initialised yet, starts <see cref="FaceMeshDevice.InitializeAsync"/>
+    /// in the background. Frames received before initialisation completes are forwarded
+    /// downstream without landmark annotation.
+    /// </summary>
     void StartFaceMeshCapture(ImageProcessor source)
     {
         _model.ModelStatus = "";
@@ -215,6 +270,9 @@ public partial class MainWindow : Avalonia.Controls.Window
         }
     }
 
+    /// <summary>
+    /// Toggles the visibility of the advanced settings panel when the checkbox state changes.
+    /// </summary>
     void ShowAdvancedSettings_OnChanged(object? sender, RoutedEventArgs e)
     {
         AdvancedSettingsPanel.IsVisible = ShowAdvancedCheckBox.IsChecked == true;

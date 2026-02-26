@@ -1,10 +1,28 @@
 namespace FaceFinderDemo.FaceDetection;
 
+/// <summary>
+/// Landmark index pairs that define the face mesh topology for the MediaPipe 468/478-point model.
+/// Each array contains <c>(a, b)</c> tuples where <c>a</c> and <c>b</c> are zero-based
+/// landmark indices; drawing a line between those two landmarks renders one edge of the mesh.
+/// </summary>
+/// <remarks>
+/// Index ranges follow the MediaPipe Face Mesh canonical topology.
+/// The iris arrays (<see cref="LeftIris"/>, <see cref="RightIris"/>) and the iris centre
+/// constants (<see cref="IrisCenterLeft"/>, <see cref="IrisCenterRight"/>) are only present
+/// when the <c>with_attention</c> model variant is used (478 landmarks total).
+/// </remarks>
 public static class FaceMeshConnections
 {
+    /// <summary>Landmark index of the left-iris centre point (attention model only, index 473).</summary>
     public const int IrisCenterLeft = 473;
+
+    /// <summary>Landmark index of the right-iris centre point (attention model only, index 468).</summary>
     public const int IrisCenterRight = 468;
 
+    /// <summary>
+    /// ~380 landmark-pair edges forming the full face surface triangulation.
+    /// Drawn in depth-coloured green to give a 3-D mesh effect.
+    /// </summary>
     public static readonly (int,int)[] Tesselation = {
         (0,11), (0,37), (0,164), (0,267), (1,4), (1,19), (1,44), (1,274),
         (2,94), (2,97), (2,141), (2,164), (2,167), (2,326), (2,370), (2,393),
@@ -327,6 +345,7 @@ public static class FaceMeshConnections
         (465,453), (465,464), (466,260), (466,263), (466,467), (467,260), (467,263), (467,342),
         (467,359), (467,445), (467,446), (467,466)
     };
+    /// <summary>36 edges tracing the outer boundary of the face silhouette. Drawn in bright white.</summary>
     public static readonly (int,int)[] FaceOval = {
         (10,338), (21,54), (54,103), (58,132), (67,109), (93,234), (103,67), (109,10),
         (127,162), (132,93), (136,172), (148,176), (149,150), (150,136), (152,148), (162,21),
@@ -334,6 +353,7 @@ public static class FaceMeshConnections
         (332,284), (338,297), (356,454), (361,288), (365,379), (377,152), (378,400), (379,378),
         (389,356), (397,365), (400,377), (454,323)
     };
+    /// <summary>~40 edges outlining the upper and lower lip contours. Drawn in blue (BGR 80,80,220).</summary>
     public static readonly (int,int)[] Lips = {
         (0,267), (13,312), (14,317), (17,314), (37,0), (39,37), (40,39), (61,146),
         (61,185), (78,95), (78,191), (80,81), (81,82), (82,13), (84,17), (87,14),
@@ -341,26 +361,33 @@ public static class FaceMeshConnections
         (267,269), (269,270), (270,409), (310,415), (311,310), (312,311), (314,405), (317,402),
         (318,324), (321,375), (324,308), (375,291), (402,318), (405,321), (409,291), (415,308),
     };
+    /// <summary>16 edges tracing the left eye outline. Drawn in yellow (BGR 220,220,0).</summary>
     public static readonly (int,int)[] LeftEye = {
         (249,390), (263,249), (263,466), (373,374), (374,380), (380,381), (381,382), (382,362),
         (384,398), (385,384), (386,385), (387,386), (388,387), (390,373), (398,362), (466,388),
     };
+    /// <summary>16 edges tracing the right eye outline. Drawn in yellow (BGR 220,220,0).</summary>
     public static readonly (int,int)[] RightEye = {
         (7,163), (33,7), (33,246), (144,145), (145,153), (153,154), (154,155), (155,133),
         (157,173), (158,157), (159,158), (160,159), (161,160), (163,144), (173,133), (246,161),
     };
+    /// <summary>8 edges tracing the left eyebrow. Drawn in cyan (BGR 0,220,220).</summary>
     public static readonly (int,int)[] LeftEyebrow = {
         (276,283), (282,295), (283,282), (293,334), (295,285), (296,336), (300,293), (334,296),
     };
+    /// <summary>8 edges tracing the right eyebrow. Drawn in cyan (BGR 0,220,220).</summary>
     public static readonly (int,int)[] RightEyebrow = {
         (46,53), (52,65), (53,52), (63,105), (65,55), (66,107), (70,63), (105,66),
     };
+    /// <summary>4 edges forming the left-iris boundary ring (attention model only). Used to estimate iris radius.</summary>
     public static readonly (int,int)[] LeftIris = {
         (474,475), (475,476), (476,477), (477,474)
     };
+    /// <summary>4 edges forming the right-iris boundary ring (attention model only). Used to estimate iris radius.</summary>
     public static readonly (int,int)[] RightIris = {
         (469,470), (470,471), (471,472), (472,469)
     };
+    /// <summary>25 edges outlining the nose bridge and tip. Drawn in light gray (BGR 200,200,200).</summary>
     public static readonly (int,int)[] Nose = {
         (1,19), (2,326), (4,1), (4,45), (5,4), (6,197), (19,94), (45,220),
         (48,64), (64,98), (94,2), (97,2), (98,97), (115,48), (168,6), (195,5),

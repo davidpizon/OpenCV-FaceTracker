@@ -9,6 +9,22 @@ using System.Runtime.InteropServices;
 
 namespace FaceFinderDemo.FaceDetection;
 
+/// <summary>
+/// Image-processing pipeline processor that runs the MediaPipe Face Mesh graph to detect
+/// 468 (or 478 with irises) face landmarks and draws a mesh overlay onto each frame.
+/// </summary>
+/// <remarks>
+/// Call <see cref="InitializeAsync"/> once before connecting an upstream source. Until
+/// initialisation completes, received frames are forwarded unchanged. The MediaPipe
+/// <c>CalculatorGraph</c> runs synchronously inside <see cref="OnImageReceived"/> — each
+/// frame is fed to the graph and the method blocks until the graph is idle before the
+/// annotated frame is emitted downstream.
+/// <para>
+/// The native landmark callback is pinned with <see cref="GCHandleType.Normal"/> rather
+/// than <see cref="GCHandleType.Pinned"/> because delegates contain managed references
+/// and cannot be pinned on .NET 9+.
+/// </para>
+/// </remarks>
 public class FaceMeshDevice : ImageProcessor, IDisposable
 {
     private const string GraphConfig = @"
@@ -55,10 +71,23 @@ node {
     private bool _initialized;
     private bool _disposed;
 
+    /// <summary>
+    /// Optional callback invoked with status messages during model download and initialisation.
+    /// Set this before calling <see cref="InitializeAsync"/>.
+    /// </summary>
     public Action<string>? OnStatus;
 
+    /// <summary>
+    /// <see langword="true"/> once <see cref="InitializeAsync"/> has completed successfully
+    /// and frames can be processed.
+    /// </summary>
     public bool IsInitialized => _initialized;
 
+    /// <summary>
+    /// Downloads any missing TFLite models, constructs the <c>CalculatorGraph</c>, registers
+    /// the landmark output callback, and starts the graph. Safe to call multiple times;
+    /// subsequent calls return immediately if already initialised.
+    /// </summary>
     public async Task InitializeAsync()
     {
         if (_initialized) return;
@@ -111,6 +140,11 @@ node {
         OnImageAvailable(image);
     }
 
+    /// <summary>
+    /// Native packet callback invoked by the MediaPipe graph when landmark results are ready.
+    /// Reads the current frame under <see cref="_frameLock"/> and calls <see cref="DrawFaceMesh"/>
+    /// for each detected face.
+    /// </summary>
     private void OnLandmarks(NormalizedLandmarkListVectorPacket packet)
     {
         Mat? frame;
@@ -123,6 +157,11 @@ node {
             DrawFaceMesh(frame, face);
     }
 
+    /// <summary>
+    /// Draws the full face mesh topology for a single face onto <paramref name="frame"/>.
+    /// Uses depth (Z coordinate) to modulate the brightness of tessellation lines.
+    /// Draws irises as circles only when 478 landmarks are present (attention model).
+    /// </summary>
     private static void DrawFaceMesh(Mat frame, NormalizedLandmarkList face)
     {
         var landmarks = face.Landmark;
@@ -194,7 +233,7 @@ node {
             Cv2.Line(frame, LandmarkToPoint(a), LandmarkToPoint(b), new Scalar(0, 220, 220), 1, LineTypes.AntiAlias);
         }
 
-        // Nose — pale cyan
+        // Nose — light gray
         foreach (var (a, b) in FaceMeshConnections.Nose)
         {
             if (a >= count || b >= count) continue;
@@ -216,6 +255,17 @@ node {
         }
     }
 
+    /// <summary>
+    /// Draws a circle representing a single iris by estimating its radius from the average
+    /// distance between the iris centre landmark and its surrounding boundary points.
+    /// </summary>
+    /// <param name="frame">The frame to draw onto.</param>
+    /// <param name="landmarks">All face landmarks for the current face.</param>
+    /// <param name="w">Frame width in pixels.</param>
+    /// <param name="h">Frame height in pixels.</param>
+    /// <param name="centerIdx">Landmark index of the iris centre point.</param>
+    /// <param name="boundaryConnections">Landmark index pairs forming the iris boundary ring.</param>
+    /// <param name="color">BGR color for the iris circle.</param>
     private static void DrawIris(Mat frame,
         Google.Protobuf.Collections.RepeatedField<NormalizedLandmark> landmarks,
         int w, int h, int centerIdx, (int, int)[] boundaryConnections, Scalar color)

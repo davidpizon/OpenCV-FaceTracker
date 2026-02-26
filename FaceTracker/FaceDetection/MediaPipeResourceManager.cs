@@ -2,6 +2,15 @@ using Mediapipe.Net.Util;
 
 namespace FaceFinderDemo.FaceDetection;
 
+/// <summary>
+/// Provides MediaPipe TFLite model files to the native runtime and downloads any
+/// missing models from the Google MediaPipe assets CDN on first use.
+/// </summary>
+/// <remarks>
+/// Only one instance may exist per process because the base <see cref="ResourceManager"/>
+/// registers a global native callback. Attempting to create a second instance throws
+/// <see cref="InvalidOperationException"/>.
+/// </remarks>
 public class MediaPipeResourceManager : ResourceManager
 {
     private static bool _created;
@@ -18,6 +27,11 @@ public class MediaPipeResourceManager : ResourceManager
 
     private const string ModelBaseUrl = "https://storage.googleapis.com/mediapipe-assets/";
 
+    /// <summary>
+    /// Initialises the resource manager and resolves the local model cache directory
+    /// to <c>&lt;app base&gt;/mediapipe-models/</c>.
+    /// Throws <see cref="InvalidOperationException"/> if an instance already exists.
+    /// </summary>
     public MediaPipeResourceManager()
     {
         lock (_lock)
@@ -29,8 +43,13 @@ public class MediaPipeResourceManager : ResourceManager
         _modelDir = Path.Combine(AppContext.BaseDirectory, "mediapipe-models");
     }
 
+    /// <summary>Returns the path unchanged (MediaPipe virtual paths map 1-to-1 to local paths).</summary>
     public override PathResolver ResolvePath => path => path;
 
+    /// <summary>
+    /// Reads the requested model file from the local cache directory.
+    /// Throws <see cref="FileNotFoundException"/> if the file has not been downloaded yet.
+    /// </summary>
     public override ResourceProvider ProvideResource => path =>
     {
         var localPath = GetLocalPath(path);
@@ -39,6 +58,14 @@ public class MediaPipeResourceManager : ResourceManager
         return File.ReadAllBytes(localPath);
     };
 
+    /// <summary>
+    /// Ensures all required TFLite models are present in the local cache, downloading
+    /// any that are missing from the Google MediaPipe assets CDN.
+    /// </summary>
+    /// <param name="onStatus">
+    /// Optional callback invoked with progress messages such as
+    /// <c>"Downloading face_detection_short_range.tflite..."</c>.
+    /// </param>
     public async Task EnsureModelsDownloadedAsync(Action<string>? onStatus = null)
     {
         Directory.CreateDirectory(_modelDir);
@@ -62,6 +89,10 @@ public class MediaPipeResourceManager : ResourceManager
         }
     }
 
+    /// <summary>
+    /// Converts a MediaPipe-style forward-slash asset path to an absolute local file path
+    /// under the model cache directory, using the OS path separator.
+    /// </summary>
     private string GetLocalPath(string mediaPath) =>
         Path.Combine(_modelDir, mediaPath.Replace('/', Path.DirectorySeparatorChar));
 }

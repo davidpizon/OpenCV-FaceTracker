@@ -5,8 +5,26 @@ using System.Timers;
 
 namespace FaceFinderDemo.FaceDetection;
 
+/// <summary>
+/// Image-processing pipeline processor that detects faces and facial features using
+/// OpenCV Haar cascade classifiers.
+/// </summary>
+/// <remarks>
+/// Detection can run on every frame (<see cref="DetectionModes.AllFrames"/>), on a
+/// periodic timer (<see cref="DetectionModes.Periodic"/>), on demand
+/// (<see cref="DetectionModes.Manual"/>), or not at all (<see cref="DetectionModes.Disabled"/>).
+/// For <c>Periodic</c> and <c>Manual</c> modes the detection runs asynchronously on a
+/// thread-pool thread so that the capture frame rate is not affected.
+/// Each processed frame is forwarded downstream via <see cref="ImageProcessor.ImageAvailable"/>
+/// with optional bounding-box overlays drawn directly on the image.
+/// </remarks>
 public class FaceDetectorDevice : ImageProcessor, IDisposable
 {
+    /// <summary>
+    /// Gets or sets the current detection mode.
+    /// Setting this property also re-applies <see cref="DetectionPeriod"/> so the
+    /// internal notification timer is started or stopped accordingly.
+    /// </summary>
     public DetectionModes DetectionMode
     {
         get => _detectionMode;
@@ -17,6 +35,11 @@ public class FaceDetectorDevice : ImageProcessor, IDisposable
         }
     }
 
+    /// <summary>
+    /// Gets or sets the interval between automatic detection passes when
+    /// <see cref="DetectionMode"/> is <see cref="DetectionModes.Periodic"/>.
+    /// Changes take effect immediately; the internal timer is restarted if necessary.
+    /// </summary>
     public TimeSpan DetectionPeriod
     {
         get => _detectionPeriod;
@@ -35,12 +58,36 @@ public class FaceDetectorDevice : ImageProcessor, IDisposable
         }
     }
 
+    /// <summary>
+    /// When <see langword="true"/>, confirmed detection bounding boxes are drawn onto each
+    /// frame before it is forwarded downstream.
+    /// </summary>
     public bool DrawDetection { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/> and <see cref="DrawDetection"/> is also enabled, the
+    /// estimated feature-search ROIs (eye strip, nose area, mouth area) are drawn in magenta.
+    /// </summary>
     public bool DrawProbableAreas { get; set; }
 
+    /// <summary>
+    /// Raised when a detection pass starts or finishes.
+    /// Use <see cref="FaceDetectionEventArgs.Starting"/> to distinguish the two phases.
+    /// </summary>
     public EventHandler<FaceDetectionEventArgs>? FaceDetectorStateChanged;
 
-    public enum DetectionModes { Disabled, Periodic, AllFrames, Manual }
+    /// <summary>Controls when the face detection algorithm is invoked.</summary>
+    public enum DetectionModes
+    {
+        /// <summary>Detection is inactive; any previous results are cleared.</summary>
+        Disabled,
+        /// <summary>Detection runs automatically at the interval set by <see cref="DetectionPeriod"/>.</summary>
+        Periodic,
+        /// <summary>Detection runs on every received frame (synchronous; may reduce frame rate).</summary>
+        AllFrames,
+        /// <summary>Detection runs only when explicitly triggered by <see cref="ManualDetect"/>.</summary>
+        Manual
+    }
 
     bool _disposed;
     CascadeClassifier? _faceClassifier;
@@ -55,9 +102,14 @@ public class FaceDetectorDevice : ImageProcessor, IDisposable
     System.Timers.Timer _detectionNotifyTimer;
     TimeSpan _detectionPeriod;
 
+    /// <summary>Resolves a cascade filename to its full path under <c>Resources/haarcascades/</c>.</summary>
     static string CascadePath(string filename) =>
         System.IO.Path.Combine(AppContext.BaseDirectory, "Resources", "haarcascades", filename);
 
+    /// <summary>
+    /// Loads all four Haar cascade classifiers and initialises the detection timer.
+    /// Detection starts in <see cref="DetectionModes.Disabled"/> mode with a 500 ms period.
+    /// </summary>
     public FaceDetectorDevice()
     {
         _faceClassifier = new CascadeClassifier(CascadePath("frontalface_alt.xml"));
@@ -71,9 +123,14 @@ public class FaceDetectorDevice : ImageProcessor, IDisposable
         DetectionPeriod = TimeSpan.FromMilliseconds(500);
     }
 
+    // Timer callback — sets the flag so the next received frame triggers a detection pass.
     void DetectionNotifyTimerOnElapsed(object? sender, ElapsedEventArgs e) =>
         _detectNextFrame = true;
 
+    /// <summary>
+    /// Schedules a single detection pass on the next received frame.
+    /// Useful when <see cref="DetectionMode"/> is <see cref="DetectionModes.Manual"/>.
+    /// </summary>
     public void ManualDetect() => _detectNextFrame = true;
 
     protected override void OnImageReceived(Mat image)
@@ -105,6 +162,15 @@ public class FaceDetectorDevice : ImageProcessor, IDisposable
         OnImageAvailable(image);
     }
 
+    /// <summary>
+    /// Runs the full Haar cascade detection pipeline on <paramref name="image"/>:
+    /// converts to grayscale, equalises the histogram, detects faces, then runs
+    /// sub-classifiers for nose, eyes, and mouth within each face's estimated ROIs.
+    /// </summary>
+    /// <remarks>
+    /// In <see cref="DetectionModes.Periodic"/> and <see cref="DetectionModes.Manual"/> modes
+    /// this method receives a cloned frame and disposes it when done.
+    /// </remarks>
     private void DetectFaces(Mat image)
     {
         if (_faceClassifier == null || _faceClassifier.Empty()) return;
@@ -156,6 +222,7 @@ public class FaceDetectorDevice : ImageProcessor, IDisposable
         _detectingInProgress = false;
     }
 
+    /// <inheritdoc/>
     public void Dispose()
     {
         if (_disposed) return;
@@ -167,10 +234,12 @@ public class FaceDetectorDevice : ImageProcessor, IDisposable
         _disposed = true;
     }
 
+    // Fires FaceDetectorStateChanged with the supplied parameters.
     private void OnFaceDetectionStateChanged(bool starting, List<FaceFeatures>? faces = null, int detectionTime = 0)
     {
         FaceDetectorStateChanged?.Invoke(this, new FaceDetectionEventArgs(starting, faces, detectionTime));
     }
 
+    /// <summary>Clears the cached list of last-detected faces.</summary>
     public void ResetDetections() => _lastDetectedFaces.Clear();
 }
