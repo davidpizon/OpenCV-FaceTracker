@@ -14,11 +14,6 @@ namespace FaceFinderDemo.Camera;
 /// </remarks>
 public class VideoFileDevice : ImageProcessor, IDisposable
 {
-    /// <summary>
-    /// <see langword="true"/> while the playback thread is running and frames are being emitted.
-    /// </summary>
-    public bool IsPlaying => _isPlaying;
-
     VideoCapture? _capture;
     Thread? _playThread;
     bool _disposed;

@@ -15,14 +15,6 @@ namespace FaceFinderDemo.Camera;
 /// </remarks>
 public class ImageDevice : ImageProcessor, IDisposable
 {
-    /// <summary>
-    /// <see langword="true"/> while the send timer is active and frames are being emitted.
-    /// </summary>
-    public bool IsSending => _isSending;
-
-    /// <summary>Not used by the timer-based emission; reserved for future rate control.</summary>
-    public int FrameRate { get; set; }
-
     bool _disposed;
     Mat? _image;
     bool _isSending;
