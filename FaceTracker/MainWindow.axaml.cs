@@ -20,6 +20,7 @@ namespace FaceFinderDemo;
 public partial class MainWindow : Avalonia.Controls.Window
 {
     FaceDetectorDevice _faceDetection;
+    FaceMeshDevice _faceMesh;
     MainWindowViewModel _model;
     CameraDevice _camera;
     ImageDevice _image;
@@ -32,11 +33,14 @@ public partial class MainWindow : Avalonia.Controls.Window
         DataContext = _model;
 
         _faceDetection = new FaceDetectorDevice();
+        _faceMesh = new FaceMeshDevice();
+        _faceMesh.OnStatus = msg => Dispatcher.UIThread.Post(() => _model.ModelStatus = msg);
         _camera = new CameraDevice();
         _image = new ImageDevice();
         _video = new VideoFileDevice();
 
         _faceDetection.ImageAvailable += ImageAvailable;
+        _faceMesh.ImageAvailable += ImageAvailable;
         _faceDetection.FaceDetectorStateChanged += FaceDetectorStateChanged;
         _model.SelectedDetectionMode = FaceDetectorDevice.DetectionModes.Periodic;
         _model.DrawDetection = true;
@@ -60,10 +64,13 @@ public partial class MainWindow : Avalonia.Controls.Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
-        _camera.StopCamera();
-        _image.StopSending();
-        _video.StopPlayback();
+       _faceDetection.DetachSource();
+       _faceMesh.DetachSource();
+       _image.StopSending();
+       _video.StopPlayback();
+       _camera.StopCamera(); // blocking join is acceptable during window teardown
         _faceDetection.Dispose();
+        _faceMesh.Dispose();
         _camera.Dispose();
         _image.Dispose();
         _video.Dispose();
@@ -145,12 +152,21 @@ public partial class MainWindow : Avalonia.Controls.Window
         LogMessage("Capturing started from camera");
         _model.IsCapturing = true;
         _model.ImagePath = "Source: camera";
-        _faceDetection.DetectionMode = _model.SelectedDetectionMode;
-        _faceDetection.DrawDetection = _model.DrawDetection;
-        _faceDetection.DrawProbableAreas = _model.DrawProbableAreas;
-        _faceDetection.AttachSource(_camera);
-        _faceDetection.ResetDetections();
-        _camera.StartCamera(_model.SelectedCameraIndex);
+
+        if (_model.UseFaceMesh)
+        {
+            StartFaceMeshCapture(_camera);
+            _camera.StartCamera(_model.SelectedCameraIndex);
+        }
+        else
+        {
+            _faceDetection.DetectionMode = _model.SelectedDetectionMode;
+            _faceDetection.DrawDetection = _model.DrawDetection;
+            _faceDetection.DrawProbableAreas = _model.DrawProbableAreas;
+            _faceDetection.AttachSource(_camera);
+            _faceDetection.ResetDetections();
+            _camera.StartCamera(_model.SelectedCameraIndex);
+        }
     }
 
     void StopCapturing_OnClick(object? sender, RoutedEventArgs e)
@@ -193,40 +209,76 @@ public partial class MainWindow : Avalonia.Controls.Window
 
         if (isImage)
         {
-            _faceDetection.AttachSource(_image);
-            if (_image.LoadFromFile(filePath))
+            if (_model.UseFaceMesh)
             {
-                _model.IsCapturing = true;
-                _model.ImagePath = "Source: " + Path.GetFileName(filePath);
-                _faceDetection.DetectionMode = _model.SelectedDetectionMode;
-                _faceDetection.DrawDetection = _model.DrawDetection;
-                _faceDetection.DrawProbableAreas = _model.DrawProbableAreas;
-                _faceDetection.ResetDetections();
-                _image.StartSending();
-                LogMessage("Image loaded: " + filePath);
+                StartFaceMeshCapture(_image);
+                if (_image.LoadFromFile(filePath))
+                {
+                    _model.IsCapturing = true;
+                    _model.ImagePath = "Source: " + Path.GetFileName(filePath);
+                    _image.StartSending();
+                    LogMessage("Image loaded: " + filePath);
+                }
+                else
+                {
+                    LogMessage("Error: Failed to load image: " + filePath);
+                }
             }
             else
             {
-                LogMessage("Error: Failed to load image: " + filePath);
+                _faceDetection.AttachSource(_image);
+                if (_image.LoadFromFile(filePath))
+                {
+                    _model.IsCapturing = true;
+                    _model.ImagePath = "Source: " + Path.GetFileName(filePath);
+                    _faceDetection.DetectionMode = _model.SelectedDetectionMode;
+                    _faceDetection.DrawDetection = _model.DrawDetection;
+                    _faceDetection.DrawProbableAreas = _model.DrawProbableAreas;
+                    _faceDetection.ResetDetections();
+                    _image.StartSending();
+                    LogMessage("Image loaded: " + filePath);
+                }
+                else
+                {
+                    LogMessage("Error: Failed to load image: " + filePath);
+                }
             }
         }
         else
         {
-            _faceDetection.AttachSource(_video);
-            if (_video.LoadFromFile(filePath))
+            if (_model.UseFaceMesh)
             {
-                _model.IsCapturing = true;
-                _model.ImagePath = "Source: " + Path.GetFileName(filePath);
-                _faceDetection.DetectionMode = _model.SelectedDetectionMode;
-                _faceDetection.DrawDetection = _model.DrawDetection;
-                _faceDetection.DrawProbableAreas = _model.DrawProbableAreas;
-                _faceDetection.ResetDetections();
-                _video.StartPlayback();
-                LogMessage("Video loaded: " + filePath);
+                StartFaceMeshCapture(_video);
+                if (_video.LoadFromFile(filePath))
+                {
+                    _model.IsCapturing = true;
+                    _model.ImagePath = "Source: " + Path.GetFileName(filePath);
+                    _video.StartPlayback();
+                    LogMessage("Video loaded: " + filePath);
+                }
+                else
+                {
+                    LogMessage("Error: Failed to load video: " + filePath);
+                }
             }
             else
             {
-                LogMessage("Error: Failed to load video: " + filePath);
+                _faceDetection.AttachSource(_video);
+                if (_video.LoadFromFile(filePath))
+                {
+                    _model.IsCapturing = true;
+                    _model.ImagePath = "Source: " + Path.GetFileName(filePath);
+                    _faceDetection.DetectionMode = _model.SelectedDetectionMode;
+                    _faceDetection.DrawDetection = _model.DrawDetection;
+                    _faceDetection.DrawProbableAreas = _model.DrawProbableAreas;
+                    _faceDetection.ResetDetections();
+                    _video.StartPlayback();
+                    LogMessage("Video loaded: " + filePath);
+                }
+                else
+                {
+                    LogMessage("Error: Failed to load video: " + filePath);
+                }
             }
         }
     }
@@ -237,6 +289,51 @@ public partial class MainWindow : Avalonia.Controls.Window
         _image.StopSending();
         _video.StopPlayback();
         _faceDetection.DetachSource();
+        _faceMesh.DetachSource();
+    }
+
+    void StartFaceMeshCapture(ImageProcessor source)
+    {
+        _model.ModelStatus = "";
+        _faceMesh.AttachSource(source);
+        if (!_faceMesh.IsInitialized)
+        {
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await _faceMesh.InitializeAsync();
+                }
+                catch (Exception ex)
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        _model.ModelStatus = "Error: " + ex.Message;
+                        LogMessage("Face mesh init error: " + ex.Message);
+                    });
+                }
+            });
+        }
+    }
+
+    void UseFaceMesh_OnChanged(object? sender, RoutedEventArgs e)
+    {
+        if (!_model.IsCapturing) return;
+        StopAllSources();
+        if (_model.UseFaceMesh)
+        {
+            StartFaceMeshCapture(_camera);
+            _camera.StartCamera(_model.SelectedCameraIndex);
+        }
+        else
+        {
+            _faceDetection.DetectionMode = _model.SelectedDetectionMode;
+            _faceDetection.DrawDetection = _model.DrawDetection;
+            _faceDetection.DrawProbableAreas = _model.DrawProbableAreas;
+            _faceDetection.AttachSource(_camera);
+            _faceDetection.ResetDetections();
+            _camera.StartCamera(_model.SelectedCameraIndex);
+        }
     }
 
     void DetectionMode_SelectionChanged(object? sender, SelectionChangedEventArgs e)

@@ -48,7 +48,8 @@ public class CameraDevice : ImageProcessor, IDisposable
     {
         if (!_isCapturing) return;
         _isCapturing = false;
-        _captureThread?.Join(2000);
+        _captureThread?.Join(); // Wait until the thread has fully exited before releasing resources
+        _captureThread = null;
         _capture?.Dispose();
         _capture = null;
     }

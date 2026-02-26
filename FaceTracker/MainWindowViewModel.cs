@@ -68,6 +68,18 @@ public class MainWindowViewModel : INotifyPropertyChanged
         set { _imagePath = value; OnPropertyChanged(nameof(ImagePath)); }
     }
 
+    public bool UseFaceMesh
+    {
+        get => _useFaceMesh;
+        set { _useFaceMesh = value; OnPropertyChanged(nameof(UseFaceMesh)); }
+    }
+
+    public string ModelStatus
+    {
+        get => _modelStatus;
+        set { _modelStatus = value; OnPropertyChanged(nameof(ModelStatus)); }
+    }
+
     List<string> _availableCameras = new();
     int _selectedCameraIndex = -1;
     bool _isCapturing;
@@ -76,6 +88,8 @@ public class MainWindowViewModel : INotifyPropertyChanged
     bool _currentlyDetecting;
     string _lastDetection = "";
     string _imagePath = "";
+    bool _useFaceMesh;
+    string _modelStatus = "";
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
