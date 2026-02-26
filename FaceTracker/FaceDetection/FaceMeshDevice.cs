@@ -1,14 +1,10 @@
-using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using FaceFinderDemo.ImageProcessing;
 using Mediapipe.Net.Framework;
 using Mediapipe.Net.Framework.Format;
 using Mediapipe.Net.Framework.Packets;
-using Mediapipe.Net.Framework.Port;
 using Mediapipe.Net.Framework.Protobuf;
 using OpenCvSharp;
+using System.Runtime.InteropServices;
 
 namespace FaceFinderDemo.FaceDetection;
 

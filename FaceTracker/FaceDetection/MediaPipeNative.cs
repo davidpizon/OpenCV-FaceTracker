@@ -1,10 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using Google.Protobuf;
 using Mediapipe.Net.Framework.Packets;
 using Mediapipe.Net.Framework.Protobuf;
 using Mediapipe.Net.Native;
+using System.Runtime.InteropServices;
 
 namespace FaceFinderDemo.FaceDetection;
 

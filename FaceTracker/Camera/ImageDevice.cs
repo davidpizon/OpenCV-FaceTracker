@@ -1,7 +1,6 @@
-using System;
-using System.Timers;
 using FaceFinderDemo.ImageProcessing;
 using OpenCvSharp;
+using System.Timers;
 
 namespace FaceFinderDemo.Camera;
 
