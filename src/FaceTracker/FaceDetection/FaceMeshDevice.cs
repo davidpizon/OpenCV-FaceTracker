@@ -27,6 +27,17 @@ namespace FaceFinderDemo.FaceDetection;
 /// </remarks>
 public class FaceMeshDevice : ImageProcessor, IDisposable
 {
+    // Pre-computed unique boundary-point index arrays for iris drawing — built once from static connection data.
+    private static readonly int[] _leftIrisBoundaryIndices = GetUniqueBoundaryIndices(FaceMeshConnections.LeftIris);
+    private static readonly int[] _rightIrisBoundaryIndices = GetUniqueBoundaryIndices(FaceMeshConnections.RightIris);
+
+    private static int[] GetUniqueBoundaryIndices((int, int)[] connections)
+    {
+        var set = new HashSet<int>();
+        foreach (var (a, b) in connections) { set.Add(a); set.Add(b); }
+        return [.. set];
+    }
+
     private const string GraphConfig = @"
 input_stream: ""input_video""
 output_stream: ""multi_face_landmarks""
@@ -125,20 +136,20 @@ node {
         var widthStep = (int)rgbMat.Step();
         int dataSize = widthStep * height;
 
-        var pixelData = new byte[dataSize];
-        Marshal.Copy(rgbMat.Data, pixelData, 0, dataSize);
+        unsafe
+        {
+            using var imageFrame = new ImageFrame(
+                ImageFormat.Types.Format.Srgb,
+                width, height, widthStep,
+                new ReadOnlySpan<byte>(rgbMat.Data.ToPointer(), dataSize));
+                using var packet = new ImageFramePacket(imageFrame, new Timestamp(_frameTimestamp++));
 
-        using var imageFrame = new ImageFrame(
-            ImageFormat.Types.Format.Srgb,
-            width, height, widthStep,
-            new ReadOnlySpan<byte>(pixelData));
-        using var packet = new ImageFramePacket(imageFrame, new Timestamp(_frameTimestamp++));
+                _graph.AddPacketToInputStream("input_video", packet).AssertOk();
+                _graph.WaitUntilIdle().AssertOk();
+            }
 
-        _graph.AddPacketToInputStream("input_video", packet).AssertOk();
-        _graph.WaitUntilIdle().AssertOk();
-
-        OnImageAvailable(image);
-    }
+            OnImageAvailable(image);
+        }
 
     /// <summary>
     /// Native packet callback invoked by the MediaPipe graph when landmark results are ready.
@@ -245,12 +256,12 @@ node {
         {
             DrawIris(frame, landmarks, w, h,
                 FaceMeshConnections.IrisCenterLeft,
-                FaceMeshConnections.LeftIris,
+                _leftIrisBoundaryIndices,
                 new Scalar(0, 255, 255));
 
             DrawIris(frame, landmarks, w, h,
                 FaceMeshConnections.IrisCenterRight,
-                FaceMeshConnections.RightIris,
+                _rightIrisBoundaryIndices,
                 new Scalar(0, 255, 255));
         }
     }
@@ -268,19 +279,11 @@ node {
     /// <param name="color">BGR color for the iris circle.</param>
     private static void DrawIris(Mat frame,
         Google.Protobuf.Collections.RepeatedField<NormalizedLandmark> landmarks,
-        int w, int h, int centerIdx, (int, int)[] boundaryConnections, Scalar color)
+        int w, int h, int centerIdx, int[] boundaryIndices, Scalar color)
     {
         var center = landmarks[centerIdx];
         var cx = (int)(center.X * w);
         var cy = (int)(center.Y * h);
-
-        // Estimate radius from average distance of boundary points to center
-        var boundaryIndices = new HashSet<int>();
-        foreach (var (a, b) in boundaryConnections)
-        {
-            boundaryIndices.Add(a);
-            boundaryIndices.Add(b);
-        }
 
         double totalDist = 0;
         int distCount = 0;

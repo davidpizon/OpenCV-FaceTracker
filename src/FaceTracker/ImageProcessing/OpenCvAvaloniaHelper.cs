@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using OpenCvSharp;
-using System.Runtime.InteropServices;
 
 namespace FaceFinderDemo.ImageProcessing;
 
@@ -69,22 +68,24 @@ public static class OpenCvAvaloniaHelper
         if (srcStride == dstStride)
         {
             // Strides match: copy the entire pixel buffer in one operation.
-            var totalBytes = (int)(srcStride * height);
-            var buffer = new byte[totalBytes];
-            Marshal.Copy(bgr.Data, buffer, 0, totalBytes);
-            Marshal.Copy(buffer, 0, locked.Address, totalBytes);
+            unsafe
+            {
+                Buffer.MemoryCopy(bgr.Data.ToPointer(), locked.Address.ToPointer(),
+                    srcStride * height, srcStride * height);
+            }
         }
         else
         {
             // Strides differ (e.g. OpenCV row padding ? Avalonia row alignment):
             // copy one row at a time so that each row lands at the correct destination offset.
-            var rowBuffer = new byte[srcStride];
-            for (int row = 0; row < height; row++)
+            unsafe
             {
-                var src = new IntPtr(bgr.Data.ToInt64() + row * srcStride);
-                var dst = new IntPtr(locked.Address.ToInt64() + row * dstStride);
-                Marshal.Copy(src, rowBuffer, 0, (int)srcStride);
-                Marshal.Copy(rowBuffer, 0, dst, (int)srcStride);
+                for (int row = 0; row < height; row++)
+                {
+                    var src = (void*)(bgr.Data.ToInt64() + row * srcStride);
+                    var dst = (void*)(locked.Address.ToInt64() + row * dstStride);
+                    Buffer.MemoryCopy(src, dst, dstStride, srcStride);
+                }
             }
         }
 

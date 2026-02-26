@@ -59,6 +59,10 @@ public class CameraDevice : ImageProcessor, IDisposable
                 // Clone so the downstream pipeline owns its copy while we reuse the buffer.
                 OnImageAvailable(frame.Clone());
             }
+            else
+            {
+                Thread.Sleep(1); // yield briefly rather than spinning when the camera isn't ready
+            }
         }
     }
 

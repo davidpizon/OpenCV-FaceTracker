@@ -16571,4 +16571,4 @@
 .custom /*0C000018*/ (UNKNOWN_OWNER/*2C000003*/ ) instance void System.Runtime.CompilerServices.NullableAttribute/*02000004*/::.ctor(uint8[]) /* 06000004 */ = ( 01 00 02 00 00 00 01 00 00 00 ) 
 .custom /*0C000027*/ (UNKNOWN_OWNER/*2C000006*/ ) instance void System.Runtime.CompilerServices.NullableAttribute/*02000004*/::.ctor(uint8) /* 06000003 */ = ( 01 00 01 00 00 ) 
 // *********** DISASSEMBLY COMPLETE ***********************
-// WARNING: Created Win32 resource file C:\git\OpenCV-FaceTracker\FaceTracker\mediapipe_il.res
+// WARNING: Created Win32 resource file C:\git\OpenCV-FaceTracker\src\FaceTracker\mediapipe_il.res

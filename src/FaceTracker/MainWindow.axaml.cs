@@ -105,7 +105,15 @@ public partial class MainWindow : Avalonia.Controls.Window
         Dispatcher.UIThread.Post(() =>
         {
             if (_model.IsCapturing)
+            {
+                var old = DetectedImage.Source as IDisposable;
                 DetectedImage.Source = bitmap;
+                old?.Dispose();
+            }
+            else
+            {
+                bitmap?.Dispose();
+            }
         });
     }
 
