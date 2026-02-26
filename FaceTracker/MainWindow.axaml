@@ -1,8 +1,8 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="FaceFinderDemo.MainWindow"
-        Title="OpenCV Face, Eye, Nose and Mouth Detection Demo"
-        Width="825" Height="740"
+        Title="MediaPipe Face Mesh Demo"
+        Width="825" Height="620"
         CanResize="False">
     <StackPanel Orientation="Vertical">
         <StackPanel Orientation="Horizontal">
@@ -22,45 +22,15 @@
                         Click="LoadMedia_OnClick">Load media</Button>
                 <TextBlock TextTrimming="CharacterEllipsis" Width="160" Margin="0,0,0,5"
                            Text="{Binding ImagePath}"/>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                    <TextBlock Margin="0,0,5,0">Detecting:</TextBlock>
-                    <Ellipse Fill="DarkCyan" Width="20" Height="20"
-                             IsVisible="{Binding CurrentlyDetecting}"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                    <TextBlock Margin="0,0,5,0">Last detection:</TextBlock>
-                    <TextBlock Text="{Binding LastDetection}"/>
-                </StackPanel>
                 <CheckBox Name="ShowAdvancedCheckBox" Margin="0,10,0,0"
-                          IsCheckedChanged="ShowAdvancedSettings_OnChanged">Show advanced settings</CheckBox>
+                          IsCheckedChanged="ShowAdvancedSettings_OnChanged">Show log</CheckBox>
+                <TextBlock Name="ModelStatusText" Margin="0,3,0,0" FontSize="10"
+                           TextWrapping="Wrap" Width="160"
+                           Text="{Binding ModelStatus}"/>
             </StackPanel>
         </StackPanel>
         <StackPanel Name="AdvancedSettingsPanel" IsVisible="False" Orientation="Horizontal" Margin="10">
-            <StackPanel Orientation="Vertical">
-                <TextBlock Margin="0,0,0,5">Detection mode:</TextBlock>
-                <ComboBox Name="DetectionModeCombo" Width="160" Height="25" Margin="0,0,0,10"
-                          ItemsSource="{Binding AvailableDetectionModes}"
-                          SelectedItem="{Binding SelectedDetectionMode}"
-                          SelectionChanged="DetectionMode_SelectionChanged"/>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                    <TextBlock Margin="0,0,5,0">Detection period:</TextBlock>
-                    <TextBlock Text="{Binding DetectionPeriod}"/>
-                    <TextBlock>ms</TextBlock>
-                </StackPanel>
-                <Slider Name="DetectionPeriodSlider" Width="160" Margin="0,0,0,10"
-                        IsEnabled="{Binding PeriodDetectionEnabled}"
-                        Minimum="100" Maximum="2000"
-                        Value="{Binding DetectionPeriod}"
-                        PropertyChanged="DetectionPeriod_OnValueChanged"/>
-                <Button Name="DetectFaceButton" Width="100" Height="25" Margin="0,0,0,10"
-                        Click="DetectFace_OnClick"
-                        IsEnabled="{Binding ManualDetectionEnabled}">Detect face</Button>
-                <CheckBox IsChecked="{Binding DrawDetection}" Margin="0,0,0,10"
-                          IsCheckedChanged="DrawDetectionCheckboxChanged">Draw detection</CheckBox>
-                <CheckBox IsChecked="{Binding DrawProbableAreas}" Margin="0,0,0,10"
-                          IsCheckedChanged="DrawDetectionCheckboxChanged">Draw probable areas</CheckBox>
-            </StackPanel>
-            <TextBox IsReadOnly="True" Height="168" Width="600" Name="LogBox"
+            <TextBox IsReadOnly="True" Height="100" Width="740" Name="LogBox"
                      ScrollViewer.VerticalScrollBarVisibility="Visible"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      AcceptsReturn="True"/>

@@ -1,10 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Threading.Tasks;
-using System.Timers;
 using FaceFinderDemo.ImageProcessing;
 using OpenCvSharp;
+using System.Diagnostics;
+using System.Timers;
 
 namespace FaceFinderDemo.FaceDetection;
 

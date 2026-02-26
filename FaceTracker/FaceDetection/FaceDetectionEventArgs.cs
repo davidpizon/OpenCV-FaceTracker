@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace FaceFinderDemo.FaceDetection;
 
 public class FaceDetectionEventArgs : EventArgs
