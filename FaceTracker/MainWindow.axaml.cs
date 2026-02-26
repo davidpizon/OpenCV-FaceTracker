@@ -1,8 +1,5 @@
 using System;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -19,7 +16,6 @@ namespace FaceFinderDemo;
 
 public partial class MainWindow : Avalonia.Controls.Window
 {
-    FaceDetectorDevice _faceDetection;
     FaceMeshDevice _faceMesh;
     MainWindowViewModel _model;
     CameraDevice _camera;
@@ -32,20 +28,13 @@ public partial class MainWindow : Avalonia.Controls.Window
         _model = new MainWindowViewModel();
         DataContext = _model;
 
-        _faceDetection = new FaceDetectorDevice();
         _faceMesh = new FaceMeshDevice();
         _faceMesh.OnStatus = msg => Dispatcher.UIThread.Post(() => _model.ModelStatus = msg);
         _camera = new CameraDevice();
         _image = new ImageDevice();
         _video = new VideoFileDevice();
 
-        _faceDetection.ImageAvailable += ImageAvailable;
         _faceMesh.ImageAvailable += ImageAvailable;
-        _faceDetection.FaceDetectorStateChanged += FaceDetectorStateChanged;
-        _model.SelectedDetectionMode = FaceDetectorDevice.DetectionModes.Periodic;
-        _model.DrawDetection = true;
-        _model.DetectionPeriod = 500;
-        _model.LastDetection = "None";
 
         InitializeComponent();
 
@@ -64,12 +53,10 @@ public partial class MainWindow : Avalonia.Controls.Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
-       _faceDetection.DetachSource();
-       _faceMesh.DetachSource();
-       _image.StopSending();
-       _video.StopPlayback();
-       _camera.StopCamera(); // blocking join is acceptable during window teardown
-        _faceDetection.Dispose();
+        _faceMesh.DetachSource();
+        _image.StopSending();
+        _video.StopPlayback();
+        _camera.StopCamera();
         _faceMesh.Dispose();
         _camera.Dispose();
         _image.Dispose();
@@ -92,37 +79,6 @@ public partial class MainWindow : Avalonia.Controls.Window
             if (_model.IsCapturing)
                 DetectedImage.Source = bitmap;
         });
-    }
-
-    void FaceDetectorStateChanged(object? sender, FaceDetectionEventArgs e)
-    {
-        var message = new StringBuilder();
-        _model.CurrentlyDetecting = e.Starting;
-        if (!e.Starting)
-        {
-            message.AppendFormat("Detection took {0} ms, ", e.DetectionTime);
-            if (e.Faces == null || e.Faces.Count == 0)
-            {
-                _model.LastDetection = "None";
-                message.Append("no face found");
-            }
-            else if (e.Faces.Count == 1)
-            {
-                _model.LastDetection = e.Faces[0].IsValid ? "Full face" : "Partial face";
-                message.AppendFormat("one {0} face found", e.Faces[0].IsValid ? "full" : "partial");
-            }
-            else
-            {
-                bool allValid = e.Faces.All(f => f.IsValid);
-                _model.LastDetection = allValid ? e.Faces.Count + " full faces" : e.Faces.Count + " partial faces";
-                message.AppendFormat("{0} {1} faces found", e.Faces.Count, allValid ? "full" : "partial");
-            }
-        }
-        else
-        {
-            message.Append("Starting detection");
-        }
-        LogMessage(message.ToString());
     }
 
     void LogMessage(string message)
@@ -153,20 +109,8 @@ public partial class MainWindow : Avalonia.Controls.Window
         _model.IsCapturing = true;
         _model.ImagePath = "Source: camera";
 
-        if (_model.UseFaceMesh)
-        {
-            StartFaceMeshCapture(_camera);
-            _camera.StartCamera(_model.SelectedCameraIndex);
-        }
-        else
-        {
-            _faceDetection.DetectionMode = _model.SelectedDetectionMode;
-            _faceDetection.DrawDetection = _model.DrawDetection;
-            _faceDetection.DrawProbableAreas = _model.DrawProbableAreas;
-            _faceDetection.AttachSource(_camera);
-            _faceDetection.ResetDetections();
-            _camera.StartCamera(_model.SelectedCameraIndex);
-        }
+        StartFaceMeshCapture(_camera);
+        _camera.StartCamera(_model.SelectedCameraIndex);
     }
 
     void StopCapturing_OnClick(object? sender, RoutedEventArgs e)
@@ -209,76 +153,32 @@ public partial class MainWindow : Avalonia.Controls.Window
 
         if (isImage)
         {
-            if (_model.UseFaceMesh)
+            StartFaceMeshCapture(_image);
+            if (_image.LoadFromFile(filePath))
             {
-                StartFaceMeshCapture(_image);
-                if (_image.LoadFromFile(filePath))
-                {
-                    _model.IsCapturing = true;
-                    _model.ImagePath = "Source: " + Path.GetFileName(filePath);
-                    _image.StartSending();
-                    LogMessage("Image loaded: " + filePath);
-                }
-                else
-                {
-                    LogMessage("Error: Failed to load image: " + filePath);
-                }
+                _model.IsCapturing = true;
+                _model.ImagePath = "Source: " + Path.GetFileName(filePath);
+                _image.StartSending();
+                LogMessage("Image loaded: " + filePath);
             }
             else
             {
-                _faceDetection.AttachSource(_image);
-                if (_image.LoadFromFile(filePath))
-                {
-                    _model.IsCapturing = true;
-                    _model.ImagePath = "Source: " + Path.GetFileName(filePath);
-                    _faceDetection.DetectionMode = _model.SelectedDetectionMode;
-                    _faceDetection.DrawDetection = _model.DrawDetection;
-                    _faceDetection.DrawProbableAreas = _model.DrawProbableAreas;
-                    _faceDetection.ResetDetections();
-                    _image.StartSending();
-                    LogMessage("Image loaded: " + filePath);
-                }
-                else
-                {
-                    LogMessage("Error: Failed to load image: " + filePath);
-                }
+                LogMessage("Error: Failed to load image: " + filePath);
             }
         }
         else
         {
-            if (_model.UseFaceMesh)
+            StartFaceMeshCapture(_video);
+            if (_video.LoadFromFile(filePath))
             {
-                StartFaceMeshCapture(_video);
-                if (_video.LoadFromFile(filePath))
-                {
-                    _model.IsCapturing = true;
-                    _model.ImagePath = "Source: " + Path.GetFileName(filePath);
-                    _video.StartPlayback();
-                    LogMessage("Video loaded: " + filePath);
-                }
-                else
-                {
-                    LogMessage("Error: Failed to load video: " + filePath);
-                }
+                _model.IsCapturing = true;
+                _model.ImagePath = "Source: " + Path.GetFileName(filePath);
+                _video.StartPlayback();
+                LogMessage("Video loaded: " + filePath);
             }
             else
             {
-                _faceDetection.AttachSource(_video);
-                if (_video.LoadFromFile(filePath))
-                {
-                    _model.IsCapturing = true;
-                    _model.ImagePath = "Source: " + Path.GetFileName(filePath);
-                    _faceDetection.DetectionMode = _model.SelectedDetectionMode;
-                    _faceDetection.DrawDetection = _model.DrawDetection;
-                    _faceDetection.DrawProbableAreas = _model.DrawProbableAreas;
-                    _faceDetection.ResetDetections();
-                    _video.StartPlayback();
-                    LogMessage("Video loaded: " + filePath);
-                }
-                else
-                {
-                    LogMessage("Error: Failed to load video: " + filePath);
-                }
+                LogMessage("Error: Failed to load video: " + filePath);
             }
         }
     }
@@ -288,7 +188,6 @@ public partial class MainWindow : Avalonia.Controls.Window
         _camera.StopCamera();
         _image.StopSending();
         _video.StopPlayback();
-        _faceDetection.DetachSource();
         _faceMesh.DetachSource();
     }
 
@@ -313,51 +212,6 @@ public partial class MainWindow : Avalonia.Controls.Window
                     });
                 }
             });
-        }
-    }
-
-    void UseFaceMesh_OnChanged(object? sender, RoutedEventArgs e)
-    {
-        if (!_model.IsCapturing) return;
-        StopAllSources();
-        if (_model.UseFaceMesh)
-        {
-            StartFaceMeshCapture(_camera);
-            _camera.StartCamera(_model.SelectedCameraIndex);
-        }
-        else
-        {
-            _faceDetection.DetectionMode = _model.SelectedDetectionMode;
-            _faceDetection.DrawDetection = _model.DrawDetection;
-            _faceDetection.DrawProbableAreas = _model.DrawProbableAreas;
-            _faceDetection.AttachSource(_camera);
-            _faceDetection.ResetDetections();
-            _camera.StartCamera(_model.SelectedCameraIndex);
-        }
-    }
-
-    void DetectionMode_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        _faceDetection.DetectionMode = _model.SelectedDetectionMode;
-        _model.UpdateState();
-    }
-
-    void DrawDetectionCheckboxChanged(object? sender, RoutedEventArgs e)
-    {
-        _faceDetection.DrawDetection = _model.DrawDetection;
-        _faceDetection.DrawProbableAreas = _model.DrawProbableAreas;
-    }
-
-    void DetectFace_OnClick(object? sender, RoutedEventArgs e)
-    {
-        _faceDetection.ManualDetect();
-    }
-
-    void DetectionPeriod_OnValueChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-    {
-        if (e.Property.Name == "Value" && sender is Slider slider)
-        {
-            _faceDetection.DetectionPeriod = TimeSpan.FromMilliseconds(slider.Value);
         }
     }
 

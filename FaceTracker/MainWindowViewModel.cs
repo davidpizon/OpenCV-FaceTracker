@@ -1,4 +1,3 @@
-using FaceFinderDemo.FaceDetection;
 using System.ComponentModel;
 
 namespace FaceFinderDemo;
@@ -20,56 +19,13 @@ public class MainWindowViewModel : INotifyPropertyChanged
     public bool IsCapturing
     {
         get => _isCapturing;
-        set { _isCapturing = value; UpdateState(); OnPropertyChanged(nameof(IsCapturing)); }
-    }
-
-    public void UpdateState()
-    {
-        ManualDetectionEnabled = SelectedDetectionMode == FaceDetectorDevice.DetectionModes.Manual && IsCapturing;
-        PeriodDetectionEnabled = SelectedDetectionMode == FaceDetectorDevice.DetectionModes.Periodic;
-    }
-
-    public Array AvailableDetectionModes => Enum.GetValues(typeof(FaceDetectorDevice.DetectionModes));
-
-    public FaceDetectorDevice.DetectionModes SelectedDetectionMode { get; set; }
-    public int DetectionPeriod { get; set; }
-    public bool DrawDetection { get; set; }
-    public bool DrawProbableAreas { get; set; }
-
-    public bool ManualDetectionEnabled
-    {
-        get => _manualDetectionEnabled;
-        set { _manualDetectionEnabled = value; OnPropertyChanged(nameof(ManualDetectionEnabled)); }
-    }
-
-    public bool PeriodDetectionEnabled
-    {
-        get => _periodDetectionEnabled;
-        set { _periodDetectionEnabled = value; OnPropertyChanged(nameof(PeriodDetectionEnabled)); }
-    }
-
-    public bool CurrentlyDetecting
-    {
-        get => _currentlyDetecting;
-        set { _currentlyDetecting = value; OnPropertyChanged(nameof(CurrentlyDetecting)); }
-    }
-
-    public string LastDetection
-    {
-        get => _lastDetection;
-        set { _lastDetection = value; OnPropertyChanged(nameof(LastDetection)); }
+        set { _isCapturing = value; OnPropertyChanged(nameof(IsCapturing)); }
     }
 
     public string ImagePath
     {
         get => _imagePath;
         set { _imagePath = value; OnPropertyChanged(nameof(ImagePath)); }
-    }
-
-    public bool UseFaceMesh
-    {
-        get => _useFaceMesh;
-        set { _useFaceMesh = value; OnPropertyChanged(nameof(UseFaceMesh)); }
     }
 
     public string ModelStatus
@@ -81,12 +37,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
     List<string> _availableCameras = new();
     int _selectedCameraIndex = -1;
     bool _isCapturing;
-    bool _manualDetectionEnabled;
-    bool _periodDetectionEnabled;
-    bool _currentlyDetecting;
-    string _lastDetection = "";
     string _imagePath = "";
-    bool _useFaceMesh;
     string _modelStatus = "";
 
     public event PropertyChangedEventHandler? PropertyChanged;

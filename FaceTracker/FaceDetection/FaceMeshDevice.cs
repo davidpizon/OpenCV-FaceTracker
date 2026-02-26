@@ -2,6 +2,7 @@ using FaceFinderDemo.ImageProcessing;
 using Mediapipe.Net.Framework;
 using Mediapipe.Net.Framework.Format;
 using Mediapipe.Net.Framework.Packets;
+using Mediapipe.Net.Framework.Port;
 using Mediapipe.Net.Framework.Protobuf;
 using OpenCvSharp;
 using System.Runtime.InteropServices;
@@ -47,11 +48,12 @@ node {
 ";
 
     private CalculatorGraph? _graph;
-    private OutputStreamPoller<List<NormalizedLandmarkList>>? _poller;
+    private GCHandle _callbackHandle;
+    private Mat? _currentFrame;
+    private readonly object _frameLock = new();
     private long _frameTimestamp;
     private bool _initialized;
     private bool _disposed;
-    private readonly object _graphLock = new();
 
     public Action<string>? OnStatus;
 
@@ -66,7 +68,14 @@ node {
 
         _graph = new CalculatorGraph(GraphConfig);
 
-        _poller = _graph.AddOutputStreamPoller<List<NormalizedLandmarkList>>("multi_face_landmarks").Value();
+        CalculatorGraph.NativePacketCallback nativeCallback = (graphPtr, streamId, packetPtr) =>
+        {
+            var packet = new NormalizedLandmarkListVectorPacket(packetPtr, isOwner: false);
+            OnLandmarks(packet);
+            return Status.StatusArgs.Ok();
+        };
+        _callbackHandle = GCHandle.Alloc(nativeCallback, GCHandleType.Normal);
+        _graph.ObserveOutputStream("multi_face_landmarks", 0, nativeCallback, false).AssertOk();
 
         _graph.StartRun().AssertOk();
         _initialized = true;
@@ -76,40 +85,42 @@ node {
     {
         if (!_initialized || _graph == null || _disposed) return;
 
-        lock (_graphLock)
-        {
-            if (!_initialized || _graph == null || _disposed) return;
+        lock (_frameLock)
+            _currentFrame = image;
 
-            using var rgbMat = new Mat();
-            Cv2.CvtColor(image, rgbMat, ColorConversionCodes.BGR2RGB);
+        using var rgbMat = new Mat();
+        Cv2.CvtColor(image, rgbMat, ColorConversionCodes.BGR2RGB);
 
-            var width = rgbMat.Width;
-            var height = rgbMat.Height;
-            var widthStep = (int)rgbMat.Step();
-            int dataSize = widthStep * height;
+        var width = rgbMat.Width;
+        var height = rgbMat.Height;
+        var widthStep = (int)rgbMat.Step();
+        int dataSize = widthStep * height;
 
-            var pixelData = new byte[dataSize];
-            Marshal.Copy(rgbMat.Data, pixelData, 0, dataSize);
+        var pixelData = new byte[dataSize];
+        Marshal.Copy(rgbMat.Data, pixelData, 0, dataSize);
 
-            using var imageFrame = new ImageFrame(
-                ImageFormat.Types.Format.Srgb,
-                width, height, widthStep,
-                new ReadOnlySpan<byte>(pixelData));
-            using var packet = new ImageFramePacket(imageFrame, new Timestamp(_frameTimestamp++));
+        using var imageFrame = new ImageFrame(
+            ImageFormat.Types.Format.Srgb,
+            width, height, widthStep,
+            new ReadOnlySpan<byte>(pixelData));
+        using var packet = new ImageFramePacket(imageFrame, new Timestamp(_frameTimestamp++));
 
-            _graph.AddPacketToInputStream("input_video", packet).AssertOk();
-            _graph.WaitUntilIdle().AssertOk();
+        _graph.AddPacketToInputStream("input_video", packet).AssertOk();
+        _graph.WaitUntilIdle().AssertOk();
 
-            using var pkt = new NormalizedLandmarkListVectorPacket();
-            if (_poller!.Next(pkt) && !pkt.IsEmpty())
-            {
-                var faces = pkt.Get();
-                foreach (var face in faces)
-                    DrawFaceMesh(image, face);
-            }
+        OnImageAvailable(image);
+    }
 
-            OnImageAvailable(image);
-        }
+    private void OnLandmarks(NormalizedLandmarkListVectorPacket packet)
+    {
+        Mat? frame;
+        lock (_frameLock)
+            frame = _currentFrame;
+        if (frame == null) return;
+
+        var faces = packet.Get();
+        foreach (var face in faces)
+            DrawFaceMesh(frame, face);
     }
 
     private static void DrawFaceMesh(Mat frame, NormalizedLandmarkList face)
@@ -252,8 +263,8 @@ node {
             }
             catch { }
 
-            _poller?.Dispose();
-            _poller = null;
+            if (_callbackHandle.IsAllocated)
+                _callbackHandle.Free();
 
             _graph.Dispose();
             _graph = null;
