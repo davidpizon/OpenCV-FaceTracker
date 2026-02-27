@@ -41,6 +41,11 @@ public partial class MainWindow : Avalonia.Controls.Window
 
         _faceMesh = new FaceMeshDevice();
         _faceMesh.OnStatus = msg => Dispatcher.UIThread.Post(() => _model.ModelStatus = msg);
+        _model.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainWindowViewModel.TrackHead))
+                _faceMesh.TrackHead = _model.TrackHead;
+        };
         _camera = new CameraDevice();
         _image = new ImageDevice();
         _video = new VideoFileDevice();

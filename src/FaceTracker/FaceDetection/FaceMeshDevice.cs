@@ -95,6 +95,13 @@ node {
     public bool IsInitialized => _initialized;
 
     /// <summary>
+    /// When <see langword="true"/> (default), the face mesh follows the face position in the
+    /// frame. When <see langword="false"/>, the mesh is drawn centred on the frame with head
+    /// orientation removed.
+    /// </summary>
+    public bool TrackHead { get; set; } = true;
+
+    /// <summary>
     /// Downloads any missing TFLite models, constructs the <c>CalculatorGraph</c>, registers
     /// the landmark output callback, and starts the graph. Safe to call multiple times;
     /// subsequent calls return immediately if already initialised.
@@ -173,7 +180,7 @@ node {
     /// Uses depth (Z coordinate) to modulate the brightness of tessellation lines.
     /// Draws irises as circles only when 478 landmarks are present (attention model).
     /// </summary>
-    private static void DrawFaceMesh(Mat frame, NormalizedLandmarkList face)
+    private void DrawFaceMesh(Mat frame, NormalizedLandmarkList face)
     {
         var landmarks = face.Landmark;
         int count = landmarks.Count;
@@ -182,10 +189,57 @@ node {
         int w = frame.Width;
         int h = frame.Height;
 
+        // Centroid — always computed; used for de-rotation when head tracking is off.
+        double sumX = 0, sumY = 0, sumZ = 0;
+        foreach (var lm in landmarks) { sumX += lm.X; sumY += lm.Y; sumZ += lm.Z; }
+        double centX = sumX / count, centY = sumY / count, centZ = sumZ / count;
+
+        // 3-D orientation axes — only computed when head tracking is disabled.
+        double rX0 = 1, rX1 = 0, rX2 = 0;
+        double rY0 = 0, rY1 = 1, rY2 = 0;
+
+        if (!TrackHead)
+        {
+            int liIdx = Math.Min(33, count - 1), riIdx = Math.Min(263, count - 1);
+            double eyeX = landmarks[riIdx].X - landmarks[liIdx].X;
+            double eyeY = landmarks[riIdx].Y - landmarks[liIdx].Y;
+            double eZ   = landmarks[riIdx].Z - landmarks[liIdx].Z;
+            double e3DLen = Math.Sqrt(eyeX * eyeX + eyeY * eyeY + eZ * eZ);
+            if (e3DLen > 1e-6) { rX0 = eyeX / e3DLen; rX1 = eyeY / e3DLen; rX2 = eZ / e3DLen; }
+
+            int foreheadIdx = Math.Min(10, count - 1), chinIdx = Math.Min(152, count - 1);
+            double dX = landmarks[chinIdx].X - landmarks[foreheadIdx].X;
+            double dY = landmarks[chinIdx].Y - landmarks[foreheadIdx].Y;
+            double dZ = landmarks[chinIdx].Z - landmarks[foreheadIdx].Z;
+            double dLen = Math.Sqrt(dX * dX + dY * dY + dZ * dZ);
+            if (dLen > 1e-6) { dX /= dLen; dY /= dLen; dZ /= dLen; }
+
+            // Face-forward (outward normal): cross(downEstimate, faceRight)
+            double fX = dY * rX2 - dZ * rX1;
+            double fY = dZ * rX0 - dX * rX2;
+            double fZ = dX * rX1 - dY * rX0;
+            double fLen = Math.Sqrt(fX * fX + fY * fY + fZ * fZ);
+            if (fLen > 1e-6) { fX /= fLen; fY /= fLen; fZ /= fLen; }
+
+            // Face-down (orthogonalised): cross(faceRight, faceForward)
+            rY0 = rX1 * fZ - rX2 * fY;
+            rY1 = rX2 * fX - rX0 * fZ;
+            rY2 = rX0 * fY - rX1 * fX;
+            double yLen = Math.Sqrt(rY0 * rY0 + rY1 * rY1 + rY2 * rY2);
+            if (yLen > 1e-6) { rY0 /= yLen; rY1 /= yLen; rY2 /= yLen; }
+        }
+
         Point LandmarkToPoint(int idx)
         {
             if (idx >= count) return new Point(0, 0);
             var lm = landmarks[idx];
+            if (!TrackHead)
+            {
+                double dx = lm.X - centX, dy = lm.Y - centY, dz = lm.Z - centZ;
+                double nx = dx * rX0 + dy * rX1 + dz * rX2;
+                double ny = dx * rY0 + dy * rY1 + dz * rY2;
+                return new Point((int)((nx + 0.5) * w), (int)((ny + 0.5) * h));
+            }
             return new Point((int)(lm.X * w), (int)(lm.Y * h));
         }
 
@@ -254,15 +308,15 @@ node {
         // Iris — only if 478 landmarks present (with_attention model)
         if (count >= 478)
         {
-            DrawIris(frame, landmarks, w, h,
+            DrawIris(frame,
                 FaceMeshConnections.IrisCenterLeft,
                 _leftIrisBoundaryIndices,
-                new Scalar(0, 255, 255));
+                new Scalar(0, 255, 255), LandmarkToPoint);
 
-            DrawIris(frame, landmarks, w, h,
+            DrawIris(frame,
                 FaceMeshConnections.IrisCenterRight,
                 _rightIrisBoundaryIndices,
-                new Scalar(0, 255, 255));
+                new Scalar(0, 255, 255), LandmarkToPoint);
         }
     }
 
@@ -278,28 +332,26 @@ node {
     /// <param name="boundaryConnections">Landmark index pairs forming the iris boundary ring.</param>
     /// <param name="color">BGR color for the iris circle.</param>
     private static void DrawIris(Mat frame,
-        Google.Protobuf.Collections.RepeatedField<NormalizedLandmark> landmarks,
-        int w, int h, int centerIdx, int[] boundaryIndices, Scalar color)
+        int centerIdx, int[] boundaryIndices, Scalar color,
+        Func<int, Point> landmarkToPoint)
     {
-        var center = landmarks[centerIdx];
-        var cx = (int)(center.X * w);
-        var cy = (int)(center.Y * h);
+        var cp = landmarkToPoint(centerIdx);
 
         double totalDist = 0;
         int distCount = 0;
         foreach (var idx in boundaryIndices)
         {
-            var lm = landmarks[idx];
-            var dx = lm.X * w - cx;
-            var dy = lm.Y * h - cy;
+            var p = landmarkToPoint(idx);
+            var dx = p.X - cp.X;
+            var dy = p.Y - cp.Y;
             totalDist += Math.Sqrt(dx * dx + dy * dy);
             distCount++;
         }
 
         int radius = distCount > 0 ? Math.Max(1, (int)(totalDist / distCount)) : 3;
 
-        Cv2.Circle(frame, new Point(cx, cy), radius, color, 1, LineTypes.AntiAlias);
-        Cv2.Circle(frame, new Point(cx, cy), 1, color, -1, LineTypes.AntiAlias);
+        Cv2.Circle(frame, cp, radius, color, 1, LineTypes.AntiAlias);
+        Cv2.Circle(frame, cp, 1, color, -1, LineTypes.AntiAlias);
     }
 
     public void Dispose()

@@ -22,7 +22,8 @@
                         Click="LoadMedia_OnClick">Load media</Button>
                 <TextBlock TextTrimming="CharacterEllipsis" Width="160" Margin="0,0,0,5"
                            Text="{Binding ImagePath}"/>
-                <CheckBox Name="ShowAdvancedCheckBox" Margin="0,10,0,0"
+                <CheckBox IsChecked="{Binding TrackHead}" Margin="0,10,0,0">Head tracking</CheckBox>
+                <CheckBox Name="ShowAdvancedCheckBox" Margin="0,5,0,0"
                           IsCheckedChanged="ShowAdvancedSettings_OnChanged">Show log</CheckBox>
                 <TextBlock Name="ModelStatusText" Margin="0,3,0,0" FontSize="10"
                            TextWrapping="Wrap" Width="160"

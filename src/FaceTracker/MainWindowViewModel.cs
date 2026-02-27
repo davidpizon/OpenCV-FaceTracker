@@ -58,11 +58,23 @@ public class MainWindowViewModel : INotifyPropertyChanged
         set { _modelStatus = value; OnPropertyChanged(nameof(ModelStatus)); }
     }
 
+    /// <summary>
+    /// When <see langword="true"/> (default), the face mesh overlay follows the detected
+    /// face position and orientation in the frame. When <see langword="false"/>, the mesh
+    /// is drawn centred on the frame with head orientation removed.
+    /// </summary>
+    public bool TrackHead
+    {
+        get => _trackHead;
+        set { _trackHead = value; OnPropertyChanged(nameof(TrackHead)); }
+    }
+
     List<string> _availableCameras = new();
     int _selectedCameraIndex = -1;
     bool _isCapturing;
     string _imagePath = "";
     string _modelStatus = "";
+    bool _trackHead = true;
 
     /// <inheritdoc/>
     public event PropertyChangedEventHandler? PropertyChanged;
