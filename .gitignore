@@ -182,3 +182,6 @@ UpgradeLog*.htm
 # Microsoft Fakes
 FakesAssemblies/
 **/.vs
+
+# Graphify — fully ignored (regenerated each session)
+graphify-out/
