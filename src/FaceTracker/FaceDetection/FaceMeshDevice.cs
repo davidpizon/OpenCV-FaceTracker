@@ -143,20 +143,28 @@ node {
         var widthStep = (int)rgbMat.Step();
         int dataSize = widthStep * height;
 
+        // Copy pixel data into a managed byte array so the native ImageFrame owns a
+        // stable buffer that is guaranteed to outlive rgbMat.  Passing a raw pointer
+        // into rgbMat's native buffer directly caused a use-after-free in the MediaPipe
+        // graph (rgbMat is disposed at the end of the using block while the native side
+        // may still hold the pointer), which manifested as ExecutionEngineException.
+        var pixelData = new byte[dataSize];
         unsafe
         {
-            using var imageFrame = new ImageFrame(
-                ImageFormat.Types.Format.Srgb,
-                width, height, widthStep,
-                new ReadOnlySpan<byte>(rgbMat.Data.ToPointer(), dataSize));
-                using var packet = new ImageFramePacket(imageFrame, new Timestamp(_frameTimestamp++));
-
-                _graph.AddPacketToInputStream("input_video", packet).AssertOk();
-                _graph.WaitUntilIdle().AssertOk();
-            }
-
-            OnImageAvailable(image);
+            Marshal.Copy(rgbMat.Data, pixelData, 0, dataSize);
         }
+
+        using var imageFrame = new ImageFrame(
+            ImageFormat.Types.Format.Srgb,
+            width, height, widthStep,
+            new ReadOnlySpan<byte>(pixelData));
+        using var packet = new ImageFramePacket(imageFrame, new Timestamp(_frameTimestamp++));
+
+        _graph.AddPacketToInputStream("input_video", packet).AssertOk();
+        _graph.WaitUntilIdle().AssertOk();
+
+        OnImageAvailable(image);
+    }
 
     /// <summary>
     /// Native packet callback invoked by the MediaPipe graph when landmark results are ready.
@@ -198,9 +206,6 @@ node {
         double rX0 = 1, rX1 = 0, rX2 = 0;
         double rY0 = 0, rY1 = 1, rY2 = 0;
 
-        // Fill-scale and centroid of de-rotated landmarks — set inside the !TrackHead block.
-        double fillScale = 1.0, midNx = 0.0, midNy = 0.0;
-
         if (!TrackHead)
         {
             int liIdx = Math.Min(33, count - 1), riIdx = Math.Min(263, count - 1);
@@ -230,28 +235,6 @@ node {
             rY2 = rX0 * fY - rX1 * fX;
             double yLen = Math.Sqrt(rY0 * rY0 + rY1 * rY1 + rY2 * rY2);
             if (yLen > 1e-6) { rY0 /= yLen; rY1 /= yLen; rY2 /= yLen; }
-
-            // First pass: bounding box of all de-rotated landmarks.
-            double minNx = double.MaxValue, maxNx = double.MinValue;
-            double minNy = double.MaxValue, maxNy = double.MinValue;
-            foreach (var lm in landmarks)
-            {
-                double dx = lm.X - centX, dy = lm.Y - centY, dz = lm.Z - centZ;
-                double nx = dx * rX0 + dy * rX1 + dz * rX2;
-                double ny = dx * rY0 + dy * rY1 + dz * rY2;
-                if (nx < minNx) minNx = nx;
-                if (nx > maxNx) maxNx = nx;
-                if (ny < minNy) minNy = ny;
-                if (ny > maxNy) maxNy = ny;
-            }
-
-            // Uniform scale so the largest span fills the frame with a 5% margin on each side.
-            double spanX = maxNx - minNx;
-            double spanY = maxNy - minNy;
-            if (spanX > 1e-6 && spanY > 1e-6)
-                fillScale = Math.Min(0.9 / spanX, 0.9 / spanY);
-            midNx = (minNx + maxNx) * 0.5;
-            midNy = (minNy + maxNy) * 0.5;
         }
 
         Point LandmarkToPoint(int idx)
@@ -263,9 +246,7 @@ node {
                 double dx = lm.X - centX, dy = lm.Y - centY, dz = lm.Z - centZ;
                 double nx = dx * rX0 + dy * rX1 + dz * rX2;
                 double ny = dx * rY0 + dy * rY1 + dz * rY2;
-                return new Point(
-                    (int)(((nx - midNx) * fillScale + 0.5) * w),
-                    (int)(((ny - midNy) * fillScale + 0.5) * h));
+                return new Point((int)((nx + 0.5) * w), (int)((ny + 0.5) * h));
             }
             return new Point((int)(lm.X * w), (int)(lm.Y * h));
         }

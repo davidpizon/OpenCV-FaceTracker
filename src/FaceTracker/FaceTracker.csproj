@@ -11,14 +11,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.3.12" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.3.12" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.12" />
+    <PackageReference Include="Avalonia" Version="12.0.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.0.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.3" />
     <PackageReference Include="Mediapipe.Net" Version="0.9.2" />
     <PackageReference Include="Mediapipe.Net.Runtime.CPU" Version="0.9.1" />
-    <PackageReference Include="OpenCvSharp4" Version="4.10.0.20241108" />
-    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20241108" />
-    <PackageReference Include="OpenCvSharp4.runtime.linux-x64" Version="4.10.0.20240717" />
+    <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260427" />
+    <PackageReference Include="OpenCvSharp4.official.runtime.linux-x64" Version="4.13.0.20260427" />
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.13.0.20260302" />
   </ItemGroup>
 
   <ItemGroup>
